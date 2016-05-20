@@ -29,7 +29,7 @@
         var getPreparedData = function (results) {
             return $.map(results, function (obj) {
                 return {
-                    dummy : "",
+                    dummy: "",
                     vendor: obj.RowKey,
                     elapsed: Math.round(obj.Elapsed * 100) / 100,
                     memory: Math.round(obj.Memory / 1024 / 1024 * 10) / 10,
@@ -86,13 +86,62 @@
                         $range.appendTo($container);
                     });
                     $.each(testsList, function (_, testCase) {
+                        var now = new Date();
+                        var newNow = new Date();
+                        newNow.setDate(now.getDate() - 1);
+                        var dateFormat = function (d) {
+                            var month = d.getMonth() + 1;
+                            if (month < 10)
+                                month = '0' + month;
+                            var date = d.getDate() + 1;
+                            if (date < 10)
+                                date = '0' + date;
+                            return d.getFullYear() + '-' + month + "-" + date + 'T00:00:00';
+                        };
                         $.ajax({
-                            url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token,
+                            url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token + "&$filter=PartitionKey+gt+'" + dateFormat(newNow) + "'",
                             type: 'GET',
                             beforeSend: function (xhr) {
                                 xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
                             },
                             success: function (data) {
+                                var startSubquery = function (skip) {
+                                    var $def = $.Deferred();
+                                    var newSkip = new Date(skip);
+                                    newSkip.setDate(skip.getDate() - 1);
+                                    $.ajax({
+                                        url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token +
+                                             "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')",
+                                        type: 'GET',
+                                        beforeSend: function (xhr) {
+                                            xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
+                                        },
+                                        success: function (data) {
+                                            var results = data.value;
+                                            if (results && results.length && (new Date() - newSkip) < 2 * 30 * 24 * 60 * 60 * 1000) {
+                                                startSubquery(newSkip).then(function (subqueryResults) {
+                                                    $def.resolve(results.concat(subqueryResults));
+                                                });
+                                            } else {
+                                                $def.resolve(results);
+                                                return;
+                                            }
+                                        }
+                                    });
+                                    return $def;
+                                }
+                                startSubquery(newNow).then(function (result) {
+                                    testCase.data = getPreparedData(result).concat(testCase.data);
+                                    $memoryChartContainer.dxChart("option", "needRealData", true);
+                                    var rangeSelector = $rangeChartContainer.dxRangeSelector("instance");
+                                    var original = rangeSelector.getSelectedRange(),
+                                        originalHandler = rangeSelector.option("onSelectedRangeChanged");
+                                    rangeSelector.option("onSelectedRangeChanged", null)
+                                    rangeSelector.option("dataSource", testCase.data);
+                                    rangeSelector.setSelectedRange(original);
+                                    rangeSelector.option("onSelectedRangeChanged", originalHandler)
+                                    window.range = $rangeChartContainer.dxRangeSelector("instance");
+                                });
                                 testCase.data = getPreparedData(data.value);
                                 var legendCustomization = function () {
                                     var sn = this.seriesName;
