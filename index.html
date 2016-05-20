@@ -4,558 +4,297 @@
 <html>
 <head>
     <meta http-equiv="content-type" content="text/html;charset=utf-8">
-   <script src="http://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.js"></script> 
+    <script src="http://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.js"></script>
     <script src="http://ajax.aspnetcdn.com/ajax/globalize/0.1.1/globalize.min.js"></script>
     <script src="http://cdn3.devexpress.com/jslib/15.2.7/js/dx.all.js"></script> <!--Desktop UI widgets-->
-    <script src="http://www.parsecdn.com/js/parse-1.4.2.min.js"></script>
     <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/15.2.7/css/dx.common.css" />
     <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/15.2.7/css/dx.light.css" />
-    
+
     <title>Pdf Performance Monitor</title>
 
     <style>
-		#chartContainer > div.range {
-    		width: 100%;
-    		display: inline-block;
-			height: 120px; 
-    		box-sizing: border-box; 				
-		}
-    	#chartContainer > div {
-    		width: 50%;
-    		display: inline-block;
-    		height: 400px; 
-    		box-sizing: border-box; 		
-    	}
-    </style>
-    <script>
-
-        var getPreparedData = function (results) {
-            var mainVersion = ["PdfDocumentProcessor152", "Rich152"];
-
-            var data = $.map(results, function (parseObject) {
-                return {
-                    testName: parseObject.attributes.Test,
-                    vendor: parseObject.attributes.Vendor,
-                    elapsed: parseObject.attributes.Elapsed,
-                    memory: parseObject.attributes.Memory / 1024 / 1024,
-                    arg: parseObject.attributes.Time
-                }
-            });
-            var cdata = data.filter(function (obj) { return mainVersion.indexOf(obj.vendor) != 0; });
-            var dictionary = {};
-            $.each(cdata, function (_, item) {
-                dictionary[item.arg.toString()] = item;
-            });
-			var lastDataItem;
-            var preparedData = $.map(data, function (obj) {
-                var dataItem = dictionary[obj.arg.toString()];
-                if (dataItem === undefined) {
-					dataItem = lastDataItem;
-				}
-				lastDataItem = dataItem;
-				
-                return {
-                    testName: obj.testName,
-                    vendor: obj.vendor,
-                    elapsed: Math.round(obj.elapsed * 100) / 100,
-                    memory: Math.round(obj.memory * 10) / 10,
-                    elapsedDiv: Math.round(obj.elapsed / dataItem.elapsed * 100),
-                    memoryDiv: Math.round(obj.memory / dataItem.memory * 100),
-                    arg: obj.arg
-                }
-            });
-
-
-            return preparedData;
+        #chartContainer > div.range {
+            width: 100%;
+            display: inline-block;
+            height: 120px;
+            box-sizing: border-box;
         }
 
+        #chartContainer > div {
+            width: 50%;
+            display: inline-block;
+            height: 400px;
+            box-sizing: border-box;
+        }
+    </style>
+    <script>
+        var getPreparedData = function (results) {
+            return $.map(results, function (obj) {
+                return {
+                    dummy: "",
+                    vendor: obj.RowKey,
+                    elapsed: Math.round(obj.Elapsed * 100) / 100,
+                    memory: Math.round(obj.Memory / 1024 / 1024 * 10) / 10,
+                    arg: obj.PartitionKey
+                }
+            });
+        }
 
-    $(document).ready(function(){ 
-		Parse.initialize("h1yuJRdJn35NQYNQUmH6yHF1oR6HbvaR0cNinG9f", "aauKYlFr63RzgQqENXz2OBxKWM6cA64LYfX0ffdM");
-		var chartId = 0;
-		var testsList = [
-			{
-				name: "Merge",
-				title: "Merging Documents",
-				description: "The test mergers 5 documents into one PDF.",
-				table: "TestResults"
-			},
-			{
-				name: "ExtractText",
-				title: "Text Extraction",
-				description: "The test extracts text from 5 documents into txt files.",
-				table: "TestResults"
-			},
-			{
-				name: "GraphicsAPI",
-				title: "Graphics API",
-				description: "The test render 2000 pages to pdf file.",
-				table: "TestResults"
-			},
-			{
-				name: "LoadAndSave",
-				title: "Loading & Saving",
-				description: "The loading and saving operations are performed sequentially for 5 PDF documents.",
-				table: "TestResults"
-			}, 
-			{
-				name: "DrawPages",
-				title: "Rendering Pages",
-				description: "The test renders 5 PDF documents sequentially.",
-				table: "TestResults"
-			}, 
-			{
-				name: "DrawFirstPage",
-				title: "First Page Rendering",
-				description: "The test renders the first page of 6 PDF documents sequentially including a very large document.",
-				table: "TestResults"
-			},
-			{
-				name: "PrintToPdf",
-				title: "Export XtraPrinting To PDF",
-				description: "Export prnx files to pdf.",
-				table: "TestResults"
-			},
-			{
-				name: "ExportToPdf",
-				title: "Export DOCX To PDF",
-				description: "Export 361 docx file to pdf.",
-				table: "RichTestResults"
-			}
-		];
-		
-		var focus = location.search.split('focus=');
-		if(focus)
-			focus = focus[1];
-		if(focus)
-			focus = focus.split("&")[0];
-		else
-			focus = 1000;
-		var filter = location.search.split('filter=');
-		if(filter) 
-			filter = filter[1];
-		if(filter)
-			filter = filter.split(",").map(function(str){
-												return str.replace(/\s/g, '').replace(/%20/g, '').toUpperCase();
-											});
-		if(filter) {
-			testsList = $.map(testsList, function (test) {
-				if(filter.indexOf(test.name.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1 || filter.indexOf(test.title.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1)
-					return test;
-				return;
-			});
-		}
-		
-		$("#absoluteCheck").dxCheckBox({
-			width: 200,
-			text: 'Compared to 15.2',
-			value: false,
-			visible: false,
-			onValueChanged: function(e){
-				$('.chartCustTime').each(function(){ $(this).dxChart({
-					commonSeriesSettings: {
-							valueField: e.value ? "elapsedDiv" : "elapsed",
-							point: {
-								size: 3
-							}
-						},
-					valueAxis: [{
-							min: 0,
-							title: e.value ? 'Duration relative to v15.2 (%)' : 'Seconds'
-						}]
-					}) 
-				});
-				$('.chartCustMem').each(function(){ $(this).dxChart({
-						commonSeriesSettings: {
-							valueField: e.value ? "memoryDiv" : "memory",
-							point: {
-								size: 3
-							}
-						},
-					valueAxis: [{
-							min: 0,
-							title: e.value ? 'Memory relative to v15.2 (%)' : 'Memory (Mbytes)'
-							}]
-						}) 
-				});
-			}
-		});
-		
-		$.each(testsList, function(_, testCase) {
-			var $container = $("#chartContainer");
-			var $header = $("<h1/>").text(testCase.title).appendTo($container);
-			var $description = $("<h5/>").text(testCase.description).appendTo($container);
-			var $timeChartContainer = $("<div class='chartCustTime' id='chartContainer"+testCase.name+"'/>");
-			$timeChartContainer.appendTo($container);
-			var $memoryChartContainer = $("<div class='chartCustMem' id='memoryChartContainer"+testCase.name+"'/>");
-			$memoryChartContainer.appendTo($container);
-			var $range = $("<div class='range' id='range"+testCase.name+"'/>");
-			$range.appendTo($container);
-		});
-		$.each(testsList, function (_, testCase) {
-			var TestResults = Parse.Object.extend(testCase.table);
-			var query = new Parse.Query(TestResults);	
-			query.equalTo("Test", testCase.name);
-			query.limit(focus);
-			var now = new Date();
-			query.lessThan("Time", now);
-			var newNow = new Date();
-			newNow.setDate(now.getDate() - 3);
-			query.greaterThan("Time", newNow);
-			query.descending("Time");
-			query.ascending("Vendor");
-			query.find({
-			    success: function (results) {
-			        var startSubquery = function (skip) {
-			            var $def = $.Deferred();
-			            var subQuery = new Parse.Query(TestResults);
-			            query.equalTo("Test", testCase.name);
-			            query.limit(1000);
-			            query.descending("Time");
-						query.lessThan("Time", skip);
-						var newSkip = skip;
-						newSkip.setDate(skip.getDate() - 3);
-						query.greaterThan("Time", newSkip);
-			            query.find({
-			                success: function (parseResults) {
-			                    if (!parseResults || !parseResults.length) {
-			                        $def.resolve(parseResults);
-			                        return;
-			                    }
-								if((new Date() - newSkip) < 2 * 30 * 24 * 60 * 60 * 1000) {
-									startSubquery(newSkip).then(function (subqueryResults) {
-										$def.resolve(parseResults.concat(subqueryResults));
-									});
-								} else {
-			                        $def.resolve(parseResults);
-			                        return;
-								}
-			                }
+        $(document).ready(function () {
+            var chartId = 0;
+            var legend;
 
-			            });
+            $.ajax({
+                url: "https://dxperformance.table.core.windows.net/Vendors?sv=2015-04-05&si=Vendors-154CCC7DFC9&tn=vendors&sig=bTsCUNL49D1QxzMAVZN0x0C4ODJhcXVrlb7aon3l8mQ%3D",
+                type: 'GET',
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
+                },
+                success: function (data) {
+                    legend = data.value;
+                }
+            });
+            $.ajax({
+                url: "https://dxperformance.table.core.windows.net/Tests?sv=2015-04-05&si=Tests-154CCC71378&tn=tests&sig=WlSf0nmT36j4%2BenF48Y6%2BKb4O0jOSKcE4c7E76deUkI%3D",
+                type: 'GET',
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
+                },
+                success: function (data) {
+                    var testsList = data.value;
+                    var filter = location.search.split('filter=');
+                    if (filter)
+                        filter = filter[1];
+                    if (filter)
+                        filter = filter.split(",").map(function (str) {
+                            return str.replace(/\s/g, '').replace(/%20/g, '').toUpperCase();
+                        });
+                    if (filter) {
+                        testsList = $.map(testsList, function (test) {
+                            if (filter.indexOf(test.RowKey.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1 || filter.indexOf(test.Name.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1)
+                                return test;
+                            return;
+                        });
+                    }
+                    $.each(testsList, function (_, testCase) {
+                        var $container = $("#chartContainer");
+                        var $header = $("<h1/>").text(testCase.Name).appendTo($container);
+                        var $description = $("<h5/>").text(testCase.Description).appendTo($container);
+                        var $timeChartContainer = $("<div class='chartCustTime' id='chartContainer" + testCase.RowKey + "'/>");
+                        $timeChartContainer.appendTo($container);
+                        var $memoryChartContainer = $("<div class='chartCustMem' id='memoryChartContainer" + testCase.RowKey + "'/>");
+                        $memoryChartContainer.appendTo($container);
+                        var $range = $("<div class='range' id='range" + testCase.RowKey + "'/>");
+                        $range.appendTo($container);
+                    });
+                    $.each(testsList, function (_, testCase) {
+                        var now = new Date();
+                        var newNow = new Date();
+                        newNow.setDate(now.getDate() - 2);
+                        var dateFormat = function (d) {
+                            var month = d.getMonth() + 1;
+                            if (month < 10)
+                                month = '0' + month;
+                            var date = d.getDate() + 1;
+                            if (date < 10)
+                                date = '0' + date;
+                            return d.getFullYear() + '-' + month + "-" + date + 'T00:00:00';
+                        };
+                        $.ajax({
+                            url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token + "&$filter=PartitionKey+gt+'" + dateFormat(newNow) + "'",
+                            type: 'GET',
+                            beforeSend: function (xhr) {
+                                xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
+                            },
+                            success: function (data) {
+                                var startSubquery = function (skip) {
+                                    var $def = $.Deferred();
+                                    var newSkip = new Date(skip);
+                                    newSkip.setDate(skip.getDate() - 2);
+                                    $.ajax({
+                                        url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token +
+                                             "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')",
+                                        type: 'GET',
+                                        beforeSend: function (xhr) {
+                                            xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
+                                        },
+                                        success: function (data) {
+                                            var results = data.value;
+                                            if (results && results.length && (new Date() - newSkip) < 2 * 30 * 24 * 60 * 60 * 1000) {
+                                                startSubquery(newSkip).then(function (subqueryResults) {
+                                                    $def.resolve(results.concat(subqueryResults));
+                                                });
+                                            } else {
+                                                $def.resolve(results);
+                                                return;
+                                            }
+                                        }
+                                    });
+                                    return $def;
+                                }
+                                startSubquery(newNow).then(function (result) {
+                                    testCase.data = getPreparedData(result).concat(testCase.data);
+                                    $memoryChartContainer.dxChart("option", "needRealData", true);
+                                    var rangeSelector = $rangeChartContainer.dxRangeSelector("instance");
+                                    var original = rangeSelector.getSelectedRange(),
+                                        originalHandler = rangeSelector.option("onSelectedRangeChanged");
+                                    rangeSelector.option("onSelectedRangeChanged", null)
+                                    rangeSelector.option("dataSource", testCase.data);
+                                    rangeSelector.setSelectedRange(original);
+                                    rangeSelector.option("onSelectedRangeChanged", originalHandler)
+                                    window.range = $rangeChartContainer.dxRangeSelector("instance");
+                                });
+                                testCase.data = getPreparedData(data.value);
+                                var legendCustomization = function () {
+                                    var sn = this.seriesName;
+                                    var item = legend.find(function (l) { return l.RowKey == sn; });
+                                    if (item != undefined)
+                                        return item.Title;
+                                    return this.seriesName;
+                                };
+                                var seriesCustomization = function (valueFromNameField) {
+                                    var item = legend.find(function (l) { return l.RowKey == valueFromNameField });
+                                    if (item != undefined)
+                                        return { color: item.Color };
+                                    return { color: "gray" };
+                                };
+                                var toolTipCustomization = function (point) {
+                                    var dt = new Date(Date.parse(point.argument));
+                                    return { text: point.valueText + "\r\n" + (dt.getMonth() + 1) + "/" + dt.getDate() + " " + dt.getHours() + ":" + dt.getMinutes() };
+                                };
+                                var $timeChartContainer = $("#chartContainer" + testCase.RowKey);
+                                $timeChartContainer.dxChart({
+                                    dataSource: testCase.data,
+                                    useAggregation: true,
+                                    commonSeriesSettings: {
+                                        valueField: "elapsed",
+                                        point: {
+                                            size: 3
+                                        }
+                                    },
+                                    valueAxis: [{
+                                        title: {
+                                            text: "Seconds"
+                                        }
+                                    }],
+                                    argumentAxis: { valueMarginsEnabled: false },
+                                    seriesTemplate: {
+                                        nameField: "vendor",
+                                        customizeSeries: seriesCustomization
+                                    },
+                                    legend: { visible: false },
+                                    animation: false,
+                                    tooltip: {
+                                        enabled: true,
+                                        customizeTooltip: toolTipCustomization
+                                    }
+                                });
 
-			            return $def;
-			        }
-			        startSubquery(newNow).then(function (result) {
-			            testCase.data = getPreparedData(result).concat(testCase.data);
-			            $memoryChartContainer.dxChart("option", "needRealData", true);
-						
-			            var rangeSelector = $rangeChartContainer.dxRangeSelector("instance");
+                                var $memoryChartContainer = $("#memoryChartContainer" + testCase.RowKey);
+                                $memoryChartContainer.dxChart({
+                                    dataSource: testCase.data,
+                                    commonSeriesSettings: {
+                                        valueField: "memory",
+                                        point: {
+                                            size: 3
+                                        }
+                                    },
+                                    valueAxis: [{
+                                        title: {
+                                            text: "Memory (Mbytes)"
+                                        }
+                                    }],
+                                    argumentAxis: { valueMarginsEnabled: false },
+                                    seriesTemplate: {
+                                        nameField: "vendor",
+                                        customizeSeries: seriesCustomization
+                                    },
+                                    legend: { customizeText: legendCustomization },
+                                    animation: false,
+                                    tooltip: {
+                                        enabled: true,
+                                        customizeTooltip: toolTipCustomization
+                                    },
+                                    useAggregation: true,
+                                    onSeriesHoverChanged: function (info) {
+                                        var hoveredSeries = info.target,
+                                            chart = $("#chartContainer" + testCase.RowKey).dxChart('instance'),
+                                            series = chart.getSeriesByName(hoveredSeries.name);
+                                        if (hoveredSeries.isHovered() && series) {
+                                            chart._tracker._setHoveredSeries(series, 'includePoints');
+                                        } else {
+                                            chart._tracker._releaseHoveredSeries();
+                                        }
+                                    },
+                                    onLegendClick: function (info) {
+                                        var series = info.target;
+                                        var chart = $("#chartContainer" + testCase.RowKey).dxChart('instance');
+                                        var series2 = chart.getSeriesByName(series.name);
 
-			            var original = rangeSelector.getSelectedRange(),
-                            originalHandler = rangeSelector.option("onSelectedRangeChanged");
-			            rangeSelector.option("onSelectedRangeChanged", null)
-			            rangeSelector.option("dataSource", testCase.data);
-			            rangeSelector.setSelectedRange(original);
-			            rangeSelector.option("onSelectedRangeChanged", originalHandler)
-
-			            window.range = $rangeChartContainer.dxRangeSelector("instance");
-			        });
-
-			        
-
-
-
-					preparedData = getPreparedData(results);
-
-					testCase.data = preparedData;
-					var legendCustomization = function() {
-						switch(this.seriesName) {
-							case "PdfDocumentProcessor161Kerning":
-								return "16.1 Kerned";
-							case "PdfDocumentProcessor152Kerning":
-								return "15.2 Kerned";
-							case "iTextSharpKerned":
-								return "iTextSharp Kerned";
-							case "SpirePdf":
-								return "Spire";
-							case "SpireDoc":
-								return "Spire";
-							case "Rich161":
-								return "16.1";
-							case "Rich152":
-								return "15.2";
-							case "Rich151":
-								return "15.1";
-							case "AsposeWords":
-								return "Aspose";
-							case "PdfDocumentProcessor161":
-								return "16.1";
-							case "PdfDocumentProcessor152":
-								return "15.2";
-							case "PdfDocumentProcessor151":
-								return "15.1";
-							case "PdfDocumentProcessor142":
-								return "14.2";
-							case "AdobePro":
-								return "Adobe";
-							case "AsposeProcessor":
-								return "Aspose";
-							case "Pdfium":
-								return "Chromium";
-							case "iTextSharp":
-								return "iTextSharp";
-							case "ApitronKit":
-								return "Apitron";
-							case "XtraPrinting":
-								return "XtraPrinting 15.2";
-							case "XtraPrinting161":
-								return "XtraPrinting 16.1";
-							default:
-								return this.seriesName;
-						}
-					};
-					var seriesCustomization = function (valueFromNameField) {
-								switch (valueFromNameField) {
-									case "PdfDocumentProcessor161Kerning":
-										return { color: "DarkSalmon" };
-									case "PdfDocumentProcessor152Kerning":
-										return { color: "chocolate" };
-									case "iTextSharpKerned":
-										return { color: "bisque" };
-									case "SpirePdf":
-										return { color: "Tan" };
-									case "SpireDoc":
-										return { color: "Tan" };
-									case "Rich161":
-										return { color: "DeepPink" };
-									case "Rich152":
-										return { color: "red" };
-									case "Rich151":
-										return { color: "aquamarine" };
-									case "AsposeWords":
-										return { color: "magenta" };
-									case "PdfDocumentProcessor161":
-										return { color: "DeepPink" };
-									case "PdfDocumentProcessor152":
-										return { color: "red" };
-									case "PdfDocumentProcessor151":
-										return { color: "aquamarine" };
-									case "PdfDocumentProcessor142":
-										return { color: "blue", title: "14.2" };
-									case "AdobePro":
-										return { color: "green", title: "Adobe" };
-									case "AsposeProcessor":
-										return { color: "magenta", title: "Aspose" };
-									case "Pdfium":
-										return { color: "orange", title: "Chromium" };
-									case "iTextSharp":
-										return { color: "gold", title: "iTextSharp" };
-									case "ApitronKit":
-										return { color: "LightSkyBlue", title: "Apitron" };
-									case "XtraPrinting":
-										return { color: "LawnGreen", title: "XtraPrinting 15.2" };
-									case "XtraPrinting161":
-										return { color: "brown", title: "XtraPrinting 16.1" };
-									default: 
-										return { };
-								}
-							};
-					var $timeChartContainer = $("#chartContainer"+testCase.name);
-					$timeChartContainer.dxChart({
-						dataSource: testCase.data,
-						useAggregation: true,
-						commonSeriesSettings: {
-							valueField: "elapsed",
-							point: {
-								size: 3
-							}
-						},
-						valueAxis: [{
-							//type: 'logarithmic',
-							title: {
-								text: "Seconds"
-							}
-						}], 
-						argumentAxis:{valueMarginsEnabled:false},
-						seriesTemplate: { 
-							nameField: "vendor",
-							customizeSeries: seriesCustomization
-						},
-						legend: { visible: false },
-                        animation: false,
-						//legend: { customizeText: legendCustomization },
-						tooltip: {
-							//shared: true,
-							enabled: true,
-							customizeTooltip: function (point) {
-								return {
-									text: point.valueText + "\r\n" + (point.argument.getMonth() + 1) + "/" + point.argument.getDate() + " "+ point.argument.getHours() + ":" + point.argument.getMinutes()
-								};
-							}
-						}
-					});
-
-					var $memoryChartContainer = $("#memoryChartContainer"+testCase.name);
-					$memoryChartContainer.dxChart({
-						dataSource: testCase.data,
-						commonSeriesSettings: {
-							valueField: "memory",
-							point: {
-								size: 3
-							}
-						},
-						valueAxis: [{
-							title: {
-								text: "Memory (Mbytes)"
-							}
-						}], 
-						argumentAxis:{valueMarginsEnabled:false},
-						seriesTemplate: { 
-							nameField: "vendor",
-							customizeSeries: seriesCustomization
-						},
-						legend: { customizeText: legendCustomization },
-						animation: false,
-						tooltip: {
-							//shared: true,
-							enabled: true,
-							customizeTooltip: function (point) {
-								return {
-									text: point.valueText + "\r\n" + (point.argument.getMonth() + 1) + "/" + point.argument.getDate() + " "+ point.argument.getHours() + ":" + point.argument.getMinutes()
-								};
-							}
-						},
-						useAggregation: true,
-						onSeriesHoverChanged: function(info){
-							var hoveredSeries = info.target,
-								chart = $("#chartContainer" + testCase.name).dxChart('instance'), 
-								series = chart.getSeriesByName(hoveredSeries.name); 
-							if(hoveredSeries.isHovered() && series){ 
-								chart.tracker._setHoveredSeries(series, 'includePoints');
-							} else {
-								chart.tracker._releaseHoveredSeries();
-							}
-						},
-						 onLegendClick: function (info) {
-							var series = info.target;
-							var chart = $("#chartContainer" + testCase.name).dxChart('instance'); 
-							var series2 = chart.getSeriesByName(series.name); 
-							 
-							if(series.isVisible()) {
-								series.hide();
-								series2.hide();
-							} else {
-								series.show();
-								series2.show();
-							}
-						 }
-					});
-
-					var tchart = $timeChartContainer.dxChart('instance'); 
-					var mchart = $memoryChartContainer.dxChart('instance'); 
-					var hide = location.search.split('hide=');
-					if(hide)
-						hide = hide[1];
-					
-					function doHide(name) {
-						var series = tchart.getSeriesByName(name);
-						if(series)
-							series.hide();
-						var series = mchart.getSeriesByName(name);
-						if(series)
-							series.hide();
-					}
-
-					doHide("SpirePdf");
-					
-					if(hide == 2) {
-						doHide("PdfDocumentProcessor151");
-						doHide("AsposeProcessor");
-						doHide("ApitronKit");
-						doHide("iTextSharp");
-						doHide("AdobePro");
-						doHide("Pdfium");
-						doHide("iTextSharpKerned");
-						doHide("PdfDocumentProcessor161Kerning");
-						doHide("PdfDocumentProcessor152Kerning");
-					}
-					if(hide == 1) {
-						if(testCase.name == "Merge") {
-							doHide("PdfDocumentProcessor151");
-						}
-						
-						if(testCase.name == "ExtractText") {
-							doHide("AdobePro");
-							doHide("AsposeProcessor");
-						}
-						
-						if(testCase.name == "GraphicsAPI") {
-							doHide("PdfDocumentProcessor161Kerning");
-							doHide("PdfDocumentProcessor161Kerning");
-							doHide("PdfDocumentProcessor152Kerning");
-							doHide("iTextSharpKerned");
-						}
-						
-						if(testCase.name == "DrawPages") {
-							doHide("ApitronKit");
-							doHide("AsposeProcessor");
-						}
-
-						if(testCase.name == "ExportToPdf") {
-							doHide("PdfDocumentProcessor151");
-							doHide("AsposeWords");
-						}
-						
-					}
-					
-					
-					var $rangeChartContainer = $("#range"+testCase.name);
-					$rangeChartContainer.dxRangeSelector({
-						size: {
-							height: 120
-						},
-						scale: {
-			//				divisionValue: 1,
-			//				minRange: 2
-						},
-			//			selectedRange: {
-			//				startValue: 10, endValue: 20
-			//			},
-						dataSource: testCase.data,
-						chart: {
-							useAggregation: true,
-							series: [{
-							    argumentField: 'arg',
-							//	name: "AsposeProcessor",
-								valueField: 'testName'
-							}]
-						},
-						behavior: {
-							callSelectedRangeChanged: "onMoving"
-						},
-						onSelectedRangeChanged: function (e) {
-                            
-						    var memoryChart = $memoryChartContainer.dxChart("instance"),
-                                timeChart = $timeChartContainer.dxChart("instance");
-
-						    if (memoryChart.option("needRealData")) {
-						        console.log("Data update happens");
-						        memoryChart.option("dataSource", testCase.data);
-						        timeChart.option("dataSource", testCase.data);
-						        memoryChart.option("needRealData", false);
-						    }
-							memoryChart.zoomArgument(e.startValue, e.endValue);
-							timeChart.zoomArgument(e.startValue, e.endValue);
-							
-						}
-					});
-			  },
-				error: function(error) {
-				alert("Error: " + error.code + " " + error.message);
-			  }
-			});
-		});
-    });
+                                        if (series.isVisible()) {
+                                            series.hide();
+                                            series2.hide();
+                                        } else {
+                                            series.show();
+                                            series2.show();
+                                        }
+                                    }
+                                });
+                                var hv = testCase.HideVendor;
+                                if (hv) {
+                                    hv = hv.split(',');
+                                    $.each(hv, function (_, name) {
+                                        var tchart = $timeChartContainer.dxChart('instance');
+                                        var mchart = $memoryChartContainer.dxChart('instance');
+                                        var series = tchart.getSeriesByName(name);
+                                        if (series)
+                                            series.hide();
+                                        var series = mchart.getSeriesByName(name);
+                                        if (series)
+                                            series.hide();
+                                    });
+                                }
+                                var $rangeChartContainer = $("#range" + testCase.RowKey);
+                                $rangeChartContainer.dxRangeSelector({
+                                    size: {
+                                        height: 120
+                                    },
+                                    dataSource: testCase.data,
+                                    chart: {
+                                        useAggregation: true,
+                                        series: [{
+                                            argumentField: 'arg',
+                                            valueField: 'dummy'
+                                        }]
+                                    },
+                                    behavior: {
+                                        callSelectedRangeChanged: "onMoving"
+                                    },
+                                    onSelectedRangeChanged: function (e) {
+                                        var memoryChart = $memoryChartContainer.dxChart("instance"),
+                                            timeChart = $timeChartContainer.dxChart("instance");
+                                        if (memoryChart.option("needRealData")) {
+                                            console.log("Data update happens");
+                                            memoryChart.option("dataSource", testCase.data);
+                                            timeChart.option("dataSource", testCase.data);
+                                            memoryChart.option("needRealData", false);
+                                        }
+                                        memoryChart.zoomArgument(e.startValue, e.endValue);
+                                        timeChart.zoomArgument(e.startValue, e.endValue);
+                                    }
+                                });
+                            }
+                        });
+                    });
+                },
+                error: function (rcvData) {
+                    console.log(rcvData);
+                }
+            });
+        });
     </script>
 </head>
 <body>
-	<table>
-	<tr>
-	<div id="logarithmicCheck"/>
-	<div id="absoluteCheck"/>
-	</tr>
-		<tr><div id="chartContainer" style="width: 100%; height:400px;" /></tr>
-	</table>
+    <div id="chartContainer" style="width: 100%; height:400px;" />
 </body>
 </html>
