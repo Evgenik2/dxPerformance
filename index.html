@@ -238,18 +238,20 @@
                                         }
                                     }
                                 });
-
-                                $.each(testCase.HideVendor.split(','), function (_, name) {
-                                    var tchart = $timeChartContainer.dxChart('instance');
-                                    var mchart = $memoryChartContainer.dxChart('instance');
-                                    var series = tchart.getSeriesByName(name);
-                                    if (series)
-                                        series.hide();
-                                    var series = mchart.getSeriesByName(name);
-                                    if (series)
-                                        series.hide();
-                                });
-
+                                var hv = testCase.HideVendor;
+                                if (hv) {
+                                    hv = hv.split(',');
+                                    $.each(hv, function (_, name) {
+                                        var tchart = $timeChartContainer.dxChart('instance');
+                                        var mchart = $memoryChartContainer.dxChart('instance');
+                                        var series = tchart.getSeriesByName(name);
+                                        if (series)
+                                            series.hide();
+                                        var series = mchart.getSeriesByName(name);
+                                        if (series)
+                                            series.hide();
+                                    });
+                                }
                                 var $rangeChartContainer = $("#range" + testCase.RowKey);
                                 $rangeChartContainer.dxRangeSelector({
                                     size: {
