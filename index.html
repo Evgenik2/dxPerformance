@@ -32,7 +32,7 @@
                     dummy : "",
                     vendor: obj.RowKey,
                     elapsed: Math.round(obj.Elapsed * 100) / 100,
-                    memory: Math.round(obj.Memory * 10) / 10,
+                    memory: Math.round(obj.Memory / 1024 / 1024 * 10) / 10,
                     arg: obj.PartitionKey
                 }
             });
