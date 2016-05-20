@@ -88,7 +88,7 @@
                     $.each(testsList, function (_, testCase) {
                         var now = new Date();
                         var newNow = new Date();
-                        newNow.setDate(now.getDate() - 1);
+                        newNow.setDate(now.getDate() - 2);
                         var dateFormat = function (d) {
                             var month = d.getMonth() + 1;
                             if (month < 10)
@@ -108,7 +108,7 @@
                                 var startSubquery = function (skip) {
                                     var $def = $.Deferred();
                                     var newSkip = new Date(skip);
-                                    newSkip.setDate(skip.getDate() - 1);
+                                    newSkip.setDate(skip.getDate() - 2);
                                     $.ajax({
                                         url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token +
                                              "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')",
