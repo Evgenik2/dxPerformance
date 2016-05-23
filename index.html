@@ -145,15 +145,15 @@
                                 testCase.data = getPreparedData(data.value);
                                 var legendCustomization = function () {
                                     var sn = this.seriesName;
-                                    var item = $(legend).find(function (l) { return l.RowKey == sn; });
-                                    if (item != undefined)
-                                        return item.Title;
+                                    for (var i = -1, j = legend.length; ++i < j;)
+                                        if (legend[i].RowKey == sn)
+                                            return legend[i].Title;
                                     return this.seriesName;
                                 };
                                 var seriesCustomization = function (valueFromNameField) {
-                                    var item = $(legend).find(function (l) { return l.RowKey == valueFromNameField });
-                                    if (item != undefined)
-                                        return { color: item.Color };
+                                    for (var i = -1, j = legend.length; ++i < j;)
+                                        if (legend[i].RowKey == valueFromNameField)
+                                            return { color: legend[i].Color };
                                     return { color: "gray" };
                                 };
                                 var toolTipCustomization = function (point) {
@@ -293,7 +293,7 @@
     </script>
 </head>
 <body>
-    <div id="chartContainer" style="width: 100%; height:400px;">
+    <div id="chartContainer" style="width: 100%; height:400px;" >
     </div>
 </body>
 </html>
