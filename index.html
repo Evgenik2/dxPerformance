@@ -90,7 +90,7 @@
                     $.each(testsList, function (_, testCase) {
                         var now = new Date();
                         var newNow = new Date();
-                        newNow.setDate(now.getDate() - 2);
+                        newNow.setDate(now.getDate() - 3);
                         var dateFormat = function (d) {
                             var month = d.getMonth() + 1;
                             if (month < 10)
@@ -101,7 +101,7 @@
                             return d.getFullYear() + '-' + month + "-" + date + 'T00:00:00';
                         };
                         $.ajax({
-                            url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token + "&$filter=PartitionKey+gt+'" + dateFormat(newNow) + "'",
+                            url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token + "&$filter=PartitionKey+gt+'" + dateFormat(newNow) + "'&sort=-PartitionKey,RowKey",
                             type: 'GET',
                             beforeSend: function (xhr) {
                                 xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
@@ -110,10 +110,10 @@
                                 var startSubquery = function (skip) {
                                     var $def = $.Deferred();
                                     var newSkip = new Date(skip);
-                                    newSkip.setDate(skip.getDate() - 2);
+                                    newSkip.setDate(skip.getDate() - 3);
                                     $.ajax({
                                         url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token +
-                                             "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')",
+                                             "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')&sort=-PartitionKey,RowKey",
                                         type: 'GET',
                                         beforeSend: function (xhr) {
                                             xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
@@ -122,7 +122,7 @@
                                             var results = data.value;
                                             if (results && results.length && (new Date() - newSkip) < 2 * 30 * 24 * 60 * 60 * 1000) {
                                                 startSubquery(newSkip).then(function (subqueryResults) {
-                                                    $def.resolve(results.concat(subqueryResults));
+                                                    $def.resolve(subqueryResults.concat(results));
                                                 });
                                             } else {
                                                 $def.resolve(results);
