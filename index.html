@@ -33,7 +33,7 @@
                     vendor: obj.RowKey,
                     elapsed: Math.round(obj.Elapsed * 100) / 100,
                     memory: Math.round(obj.Memory / 1024 / 1024 * 10) / 10,
-                    arg: new Date(Date.parse(obj.PartitionKey))
+                    arg: new Date(obj.PartitionKey.toString() + "Z")
                 }
             });
         }
