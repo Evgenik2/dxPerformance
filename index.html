@@ -116,7 +116,7 @@
 					if(filter) {
 						var message;
 						if(sourceFilter == getCookie("dxPerformanceCurrentFilter"))
-							$("<a>Applyed your default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
+							$("<a>Default filter applyed: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
 						else{
 							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
 							$("#filterRefId").click(function() {
