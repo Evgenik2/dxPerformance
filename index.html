@@ -87,7 +87,11 @@
                         var $timeChartContainer = $("<div class='chartCustTime' id='chartContainer" + testCase.RowKey + "'/>");
                         $timeChartContainer.appendTo($container);
                         var $memoryChartContainer = $("<div class='chartCustMem' id='memoryChartContainer" + testCase.RowKey + "'/>");
-                        $memoryChartContainer.appendTo($container);
+						if(testCase.HideMemoryMetrics !== true)
+							$memoryChartContainer.appendTo($container);
+						else
+							$timeChartContainer.width('100%');
+
                         var $range = $("<div class='range' id='range" + testCase.RowKey + "'/>");
                         $range.appendTo($container);
                     });
@@ -138,7 +142,7 @@
                                 }
                                 startSubquery(newNow).then(function (result) {
                                     testCase.data = getPreparedData(result).concat(testCase.data);
-                                    $memoryChartContainer.dxChart("option", "needRealData", true);
+                                    $timeChartContainer.dxChart("option", "needRealData", true);
                                     var rangeSelector = $rangeChartContainer.dxRangeSelector("instance");
                                     var original = rangeSelector.getSelectedRange(),
                                         originalHandler = rangeSelector.option("onSelectedRangeChanged");
@@ -166,6 +170,29 @@
                                     var dt = point.argument;
                                     return { text: point.valueText + "\r\n" + (dt.getMonth() + 1) + "/" + dt.getDate() + " " + dt.getHours() + ":" + dt.getMinutes() };
                                 };
+								var legendClickHandler = function (info) {
+									var series = info.target;
+									var chart = $("#chartContainer" + testCase.RowKey).dxChart('instance');
+									var series2 = chart.getSeriesByName(series.name);
+
+									if (series.isVisible()) {
+										series.hide();
+										series2.hide();
+									} else {
+										series.show();
+										series2.show();
+									}
+								};
+								var seriesHoverChangedHandler = function (info) {
+									var hoveredSeries = info.target,
+										chart = $("#chartContainer" + testCase.RowKey).dxChart('instance'),
+										series = chart.getSeriesByName(hoveredSeries.name);
+									if (hoveredSeries.isHovered() && series) {
+										chart._tracker._setHoveredSeries(series, 'includePoints');
+									} else {
+										chart._tracker._releaseHoveredSeries();
+									}
+								};
                                 var $timeChartContainer = $("#chartContainer" + testCase.RowKey);
                                 $timeChartContainer.dxChart({
                                     dataSource: testCase.data,
@@ -186,12 +213,15 @@
                                         nameField: "vendor",
                                         customizeSeries: seriesCustomization
                                     },
-                                    legend: { visible: false },
+                                    legend: { visible: testCase.HideMemoryMetrics === true },
                                     animation: false,
                                     tooltip: {
                                         enabled: true,
                                         customizeTooltip: toolTipCustomization
-                                    }
+                                    },
+                                    useAggregation: true,
+                                    //onSeriesHoverChanged: seriesHoverChangedHandler,
+									onLegendClick: legendClickHandler
                                 });
 
                                 var $memoryChartContainer = $("#memoryChartContainer" + testCase.RowKey);
@@ -220,29 +250,8 @@
                                         customizeTooltip: toolTipCustomization
                                     },
                                     useAggregation: true,
-                                    onSeriesHoverChanged: function (info) {
-                                        var hoveredSeries = info.target,
-                                            chart = $("#chartContainer" + testCase.RowKey).dxChart('instance'),
-                                            series = chart.getSeriesByName(hoveredSeries.name);
-                                        if (hoveredSeries.isHovered() && series) {
-                                            chart._tracker._setHoveredSeries(series, 'includePoints');
-                                        } else {
-                                            chart._tracker._releaseHoveredSeries();
-                                        }
-                                    },
-                                    onLegendClick: function (info) {
-                                        var series = info.target;
-                                        var chart = $("#chartContainer" + testCase.RowKey).dxChart('instance');
-                                        var series2 = chart.getSeriesByName(series.name);
-
-                                        if (series.isVisible()) {
-                                            series.hide();
-                                            series2.hide();
-                                        } else {
-                                            series.show();
-                                            series2.show();
-                                        }
-                                    }
+                                    onSeriesHoverChanged: seriesHoverChangedHandler,
+                                    onLegendClick: legendClickHandler
                                 });
                                 var hv = testCase.HideVendor;
                                 if (hv) {
@@ -277,11 +286,11 @@
                                     onSelectedRangeChanged: function (e) {
                                         var memoryChart = $memoryChartContainer.dxChart("instance"),
                                             timeChart = $timeChartContainer.dxChart("instance");
-                                        if (memoryChart.option("needRealData")) {
+                                        if (timeChart.option("needRealData")) {
                                             console.log("Data update happens");
                                             memoryChart.option("dataSource", testCase.data);
                                             timeChart.option("dataSource", testCase.data);
-                                            memoryChart.option("needRealData", false);
+                                            timeChart.option("needRealData", false);
                                         }
                                         memoryChart.zoomArgument(e.startValue, e.endValue);
                                         timeChart.zoomArgument(e.startValue, e.endValue);
