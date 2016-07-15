@@ -115,6 +115,13 @@
 					
 					if(filter) {
 						var message;
+<<<<<<< HEAD
+						if(sourceFilter == getCookie("dxPerformanceCurrentFilter"))
+							$("<a>Default filter applyed: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
+						else{
+							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
+							$("#filterRefId").click(function() {
+=======
 						if(sourceFilter == getCookie("dxPerformanceCurrentFilter")) {
 							$("<a>Default filter applyed: ('" + filterReadable.join("', '") + "') </a>").appendTo($testsFilter);
 							$("<a id='filterRefId' href=''>Clear</a>").appendTo($testsFilter).click(function() {
@@ -122,6 +129,7 @@
 							});
 						} else { 
 							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter).click(function() {
+>>>>>>> refs/remotes/origin/gh-pages
 								setCookie("dxPerformanceCurrentFilter", sourceFilter);
 							});
 						}
