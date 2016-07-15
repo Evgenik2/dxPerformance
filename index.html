@@ -93,11 +93,11 @@
 					var sourceFilter;
                     if (filter) {
                         filter = filter[1];
-						sourceFilter = filter;
 					} 
 					if(!filter) {
 						filter = getCookie("dxPerformanceCurrentFilter");
 					}
+					sourceFilter = filter;
                     if (filter) {
 						filterReadable = filter.replace(/\s/g, ' ').replace(/%20/g, ' ').replace(', ',',').split(",");
                         filter = filter.split(",").map(function (str) {
@@ -115,7 +115,7 @@
 					
 					if(filter) {
 						var message;
-						if(filter == getCookie("dxPerformanceCurrentFilter"))
+						if(sourceFilter == getCookie("dxPerformanceCurrentFilter"))
 							$("<a>Applyed your default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
 						else{
 							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
