@@ -14,7 +14,7 @@
         #chartContainer > div.range {
             width: 100%;
             display: inline-block;
-            height: 120px;
+            height: 120px; 
             box-sizing: border-box;
         }
 
@@ -37,7 +37,6 @@
                 }
             });
         }
-
         $(document).ready(function () {
             var chartId = 0;
             var legend;
@@ -90,8 +89,7 @@
 						if(testCase.HideMemoryMetrics !== true)
 							$memoryChartContainer.appendTo($container);
 						else
-							$timeChartContainer.width('100%');
-
+							$timeChartContainer.width('100%'); 
                         var $range = $("<div class='range' id='range" + testCase.RowKey + "'/>");
                         $range.appendTo($container);
                     });
