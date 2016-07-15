@@ -211,7 +211,9 @@
                                         nameField: "vendor",
                                         customizeSeries: seriesCustomization
                                     },
-                                    legend: { visible: testCase.HideMemoryMetrics === true },
+                                    legend: {
+										customizeText: legendCustomization,
+										visible: testCase.HideMemoryMetrics === true },
                                     animation: false,
                                     tooltip: {
                                         enabled: true,
