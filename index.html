@@ -93,11 +93,18 @@
 					var sourceFilter;
                     if (filter) {
                         filter = filter[1];
+<<<<<<< HEAD
 						sourceFilter = filter;
+=======
+>>>>>>> refs/remotes/origin/master
 					} 
 					if(!filter) {
 						filter = getCookie("dxPerformanceCurrentFilter");
 					}
+<<<<<<< HEAD
+=======
+					sourceFilter = filter;
+>>>>>>> refs/remotes/origin/master
                     if (filter) {
 						filterReadable = filter.replace(/\s/g, ' ').replace(/%20/g, ' ').replace(', ',',').split(",");
                         filter = filter.split(",").map(function (str) {
@@ -112,6 +119,7 @@
                         });
                     }
 					var $testsFilter = $("#testsFilter");
+<<<<<<< HEAD
 					if(filter) {
 						$("<a id='filterRefId' href='#'>Filter = ('" + filterReadable.join("', '") + "')<a>").appendTo($testsFilter);
 						$("#filterRefId").click(function() {
@@ -119,6 +127,21 @@
 						});
 					} else {
 						$("<a href='javascript:FilterClick()'>Filter is empty, set filter<a>").appendTo($testsFilter);
+=======
+					
+					if(filter) {
+						var message;
+						if(sourceFilter == getCookie("dxPerformanceCurrentFilter"))
+							$("<a>Applyed your default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
+						else{
+							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
+							$("#filterRefId").click(function() {
+								setCookie("dxPerformanceCurrentFilter", sourceFilter);
+							});
+						}
+					} else {
+						//$("<a href='javascript:FilterClick()'>Filter is empty, set filter<a>").appendTo($testsFilter);
+>>>>>>> refs/remotes/origin/master
 					}
                     
 					$.each(testsList, function (_, testCase) {
