@@ -26,6 +26,35 @@
         }
     </style>
     <script>
+		function setCookie (name, value, expires, path, domain, secure) {
+			document.cookie = name + "=" + escape(value);// +
+//				((expires) ? "; expires=" + expires : "") +
+//				((path) ? "; path=" + path : "") +
+//				((domain) ? "; domain=" + domain : "") +
+//				((secure) ? "; secure" : "");
+		}
+		function getCookie(name) {
+			var cookie = " " + document.cookie;
+			var search = " " + name + "=";
+			var setStr = null;
+			var offset = 0;
+			var end = 0;
+			if (cookie.length > 0) {
+				offset = cookie.indexOf(search);
+				if (offset != -1) {
+					offset += search.length;
+					end = cookie.indexOf(";", offset)
+					if (end == -1) {
+						end = cookie.length;
+					}
+					setStr = unescape(cookie.substring(offset, end));
+				}
+			}
+			return(setStr);
+		}
+		function FilterClick(filter) {
+			setCookie("dxPerformanceCurrentFilter", filter);
+		}
         var getPreparedData = function (results) {
             return $.map(results, function (obj) {
                 return {
@@ -60,12 +89,21 @@
                 success: function (data) {
                     var testsList = data.value;
                     var filter = location.search.split('filter=');
-                    if (filter)
+					var filterReadable;
+					var sourceFilter;
+                    if (filter) {
                         filter = filter[1];
-                    if (filter)
+						sourceFilter = filter;
+					} 
+					if(!filter) {
+						filter = getCookie("dxPerformanceCurrentFilter");
+					}
+                    if (filter) {
+						filterReadable = filter.replace(/\s/g, ' ').replace(/%20/g, ' ').replace(', ',',').split(",");
                         filter = filter.split(",").map(function (str) {
                             return str.replace(/\s/g, '').replace(/%20/g, '').toUpperCase();
                         });
+					}
                     if (filter) {
                         testsList = $.map(testsList, function (test) {
                             if (filter.indexOf(test.PartitionKey.toUpperCase()) > -1 || filter.indexOf(test.RowKey.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1 || filter.indexOf(test.Name.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1)
@@ -73,15 +111,25 @@
                             return;
                         });
                     }
-                    $.each(testsList, function (_, testCase) {
+					var $testsFilter = $("#testsFilter");
+					
+					if(filter) {
+						var message;
+						if(filter == getCookie("dxPerformanceCurrentFilter"))
+							$("<a>Applyed your default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
+						else{
+							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter);
+							$("#filterRefId").click(function() {
+								setCookie("dxPerformanceCurrentFilter", sourceFilter);
+							});
+						}
+					} else {
+						//$("<a href='javascript:FilterClick()'>Filter is empty, set filter<a>").appendTo($testsFilter);
+					}
+                    
+					$.each(testsList, function (_, testCase) {
                         var $container = $("#chartContainer");
                         var $header = $("<h1/>").text(testCase.Name).appendTo($container);
-                        $header.dblclick(function () {
-                            var $editor = $("<input  type='text'/>");
-                            //$container.remove($header);
-                            $editor.text(testCase.Name).appendTo($container);
-                            $header.text(testCase.Name);
-                        });
                         var $description = $("<h5/>").text(testCase.Description).appendTo($container);
                         var $timeChartContainer = $("<div class='chartCustTime' id='chartContainer" + testCase.RowKey + "'/>");
                         $timeChartContainer.appendTo($container);
@@ -308,6 +356,7 @@
     </script>
 </head>
 <body>
+	<div id="testsFilter"></div>
     <div id="chartContainer" style="width: 100%; height:400px;">
     </div>
 </body>
