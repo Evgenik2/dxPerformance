@@ -115,12 +115,12 @@
 					
 					if(filter) {
 						var message;
-						if(sourceFilter == getCookie("dxPerformanceCurrentFilter"))
+						if(sourceFilter == getCookie("dxPerformanceCurrentFilter")) {
 							$("<a>Default filter applyed: ('" + filterReadable.join("', '") + "') </a>").appendTo($testsFilter);
 							$("<a id='filterRefId' href=''>Clear</a>").appendTo($testsFilter).click(function() {
 								setCookie("dxPerformanceCurrentFilter", "");
 							});
-						else{
+						} else {
 							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter).click(function() {
 								setCookie("dxPerformanceCurrentFilter", sourceFilter);
 							});
