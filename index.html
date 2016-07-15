@@ -14,7 +14,7 @@
         #chartContainer > div.range {
             width: 100%;
             display: inline-block;
-            height: 120px;
+            height: 120px; 
             box-sizing: border-box;
         }
 
@@ -211,7 +211,9 @@
                                         nameField: "vendor",
                                         customizeSeries: seriesCustomization
                                     },
-                                    legend: { visible: testCase.HideMemoryMetrics === true },
+                                    legend: {
+										customizeText: legendCustomization,
+										visible: testCase.HideMemoryMetrics === true },
                                     animation: false,
                                     tooltip: {
                                         enabled: true,
@@ -231,7 +233,7 @@
                                             size: 3
                                         }
                                     },
-                                    valueAxis: [{
+                                    valueAxis: [{ 
                                         title: {
                                             text: "Memory (Mbytes)"
                                         }
