@@ -4,9 +4,9 @@
     <meta http-equiv="content-type" content="text/html;charset=utf-8">
     <script src="http://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.js"></script>
     <script src="http://ajax.aspnetcdn.com/ajax/globalize/0.1.1/globalize.min.js"></script>
-    <script src="http://cdn3.devexpress.com/jslib/15.2.10/js/dx.all.js"></script> <!--Desktop UI widgets-->
-    <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/15.2.10/css/dx.common.css" />
-    <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/15.2.10/css/dx.light.css" />
+    <script src="http://cdn3.devexpress.com/jslib/16.1.4/js/dx.all.js"></script> <!--Desktop UI widgets-->
+    <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/16.1.4/css/dx.common.css" />
+    <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/16.1.4/css/dx.light.css" />
 
     <title>Pdf Performance Monitor</title>
 
@@ -52,9 +52,6 @@
 			}
 			return(setStr);
 		}
-		function FilterClick(filter) {
-			setCookie("dxPerformanceCurrentFilter", filter);
-		}
         var getPreparedData = function (results) {
             return $.map(results, function (obj) {
                 return {
@@ -88,47 +85,36 @@
                 },
                 success: function (data) {
                     var testsList = data.value;
-                    var filter = location.search.split('filter=');
-					var filterReadable;
-					var sourceFilter;
-                    if (filter) {
-                        filter = filter[1];
-					} 
-					if(!filter) {
-						filter = getCookie("dxPerformanceCurrentFilter");
-					}
-					sourceFilter = filter;
-                    if (filter) {
-						filterReadable = filter.replace(/\s/g, ' ').replace(/%20/g, ' ').replace(', ',',').split(",");
-                        filter = filter.split(",").map(function (str) {
-                            return str.replace(/\s/g, '').replace(/%20/g, '').toUpperCase();
-                        });
-					}
-                    if (filter) {
-                        testsList = $.map(testsList, function (test) {
-                            if (filter.indexOf(test.PartitionKey.toUpperCase()) > -1 || filter.indexOf(test.RowKey.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1 || filter.indexOf(test.Name.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1)
-                                return test;
-                            return;
-                        });
-                    }
-					var $testsFilter = $("#testsFilter");
-					
-					if(filter) {
-						var message;
-						if(sourceFilter == getCookie("dxPerformanceCurrentFilter")) {
-							$("<a>Default filter applyed: ('" + filterReadable.join("', '") + "') </a>").appendTo($testsFilter);
-							$("<a id='filterRefId' href=''>Clear</a>").appendTo($testsFilter).click(function() {
-								setCookie("dxPerformanceCurrentFilter", "");
-							});
-						} else {
-							$("<a id='filterRefId' href=''>Click here to set default filter: ('" + filterReadable.join("', '") + "')</a>").appendTo($testsFilter).click(function() {
-								setCookie("dxPerformanceCurrentFilter", sourceFilter);
-							});
-						}
-					} else {
-						//$("<a href='javascript:FilterClick()'>Filter is empty, set filter<a>").appendTo($testsFilter);
-					}
-                    
+				
+                    var keys = data.value.reduce((partitionKeys, val) => { 
+                        if(partitionKeys.indexOf(val.PartitionKey) === -1){ 
+                            partitionKeys.push(val.PartitionKey); 
+                        }
+                        return partitionKeys;
+                    }, []);
+					var filter = (getCookie("dxPerformanceCurrentFilter") || "").split(",").filter(function(n){ return n != "" });
+                    $("#tagBoxFilter").dxTagBox({
+                        items: keys,
+                        showSelectionControls: true,
+                        applyValueMode: "useButtons",
+                        value: filter,
+                        onSelectionChanged: (e) => {
+                            var x = e.component.option("selectedItems").join(",");
+                            if(x !== getCookie("dxPerformanceCurrentFilter")) {
+                                setCookie("dxPerformanceCurrentFilter", x);
+                                document.location = document.location;
+                            }
+                        }
+                    });
+                    var $testsFilter = $("#testsFilter");
+					filter = filter.map(function (str) {
+						return str.replace(/\s/g, '').replace(/%20/g, '').toUpperCase();
+					});
+					testsList = $.map(testsList, function (test) {
+						if (filter.indexOf(test.PartitionKey.toUpperCase()) > -1 || filter.indexOf(test.RowKey.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1 || filter.indexOf(test.Name.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1)
+							return test;
+						return;
+					});
 					$.each(testsList, function (_, testCase) {
                         var $container = $("#chartContainer");
                         var $header = $("<h1/>").text(testCase.Name).appendTo($container);
@@ -359,6 +345,7 @@
 </head>
 <body>
 	<div id="testsFilter"></div>
+    <div id="tagBoxFilter"></div>
     <div id="chartContainer" style="width: 100%; height:400px;">
     </div>
 </body>
