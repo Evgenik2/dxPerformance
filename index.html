@@ -87,7 +87,7 @@
                     var testsList = data.value;
 				
                     var keys = data.value.reduce((partitionKeys, val) => { 
-                        if(partitionKeys.indexOf(val.PartitionKey) === -1){ 
+                        if(partitionKeys.indexOf(val.PartitionKey) === -1) { 
                             partitionKeys.push(val.PartitionKey); 
                         }
                         return partitionKeys;
@@ -324,11 +324,13 @@
                                             timeChart = $timeChartContainer.dxChart("instance");
                                         if (timeChart.option("needRealData")) {
                                             console.log("Data update happens");
-                                            memoryChart.option("dataSource", testCase.data);
+											if(memoryChart)
+												memoryChart.option("dataSource", testCase.data);
                                             timeChart.option("dataSource", testCase.data);
                                             timeChart.option("needRealData", false);
                                         }
-                                        memoryChart.zoomArgument(e.startValue, e.endValue);
+										if(memoryChart)
+											memoryChart.zoomArgument(e.startValue, e.endValue);
                                         timeChart.zoomArgument(e.startValue, e.endValue);
                                     }
                                 });
