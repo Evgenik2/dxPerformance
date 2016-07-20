@@ -87,9 +87,8 @@
                     var testsList = data.value;
 				
                     var keys = data.value.reduce((partitionKeys, val) => { 
-                        if(partitionKeys.indexOf(val.PartitionKey) === -1) { 
+                        if(partitionKeys.indexOf(val.PartitionKey) === -1)
                             partitionKeys.push(val.PartitionKey); 
-                        }
                         return partitionKeys;
                     }, []);
 					var filter = (getCookie("dxPerformanceCurrentFilter") || "").split(",").filter(function(n){ return n != "" });
