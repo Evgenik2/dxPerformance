@@ -100,8 +100,9 @@
                         onSelectionChanged: (e) => {
                             var x = e.component.option("selectedItems").join(",");
                             if(x !== getCookie("dxPerformanceCurrentFilter")) {
+								
 								var date = new Date;
-								date.setDate(date.getDate() + 10000);
+								date.setDate(date.getDate() + 10);
                                 setCookie("dxPerformanceCurrentFilter", x, date);
                                 document.location = document.location;
                             }
