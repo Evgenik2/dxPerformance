@@ -27,8 +27,8 @@
     </style>
     <script>
 		function setCookie (name, value, expires, path, domain, secure) {
-			document.cookie = name + "=" + escape(value);// +
-//				((expires) ? "; expires=" + expires : "") +
+			document.cookie = name + "=" + escape(value) +
+				((expires) ? "; expires=" + expires : "");// +
 //				((path) ? "; path=" + path : "") +
 //				((domain) ? "; domain=" + domain : "") +
 //				((secure) ? "; secure" : "");
@@ -36,7 +36,7 @@
 		function getCookie(name) {
 			var cookie = " " + document.cookie;
 			var search = " " + name + "=";
-			var setStr = null;
+			var setStr = "";
 			var offset = 0;
 			var end = 0;
 			if (cookie.length > 0) {
@@ -100,7 +100,9 @@
                         onSelectionChanged: (e) => {
                             var x = e.component.option("selectedItems").join(",");
                             if(x !== getCookie("dxPerformanceCurrentFilter")) {
-                                setCookie("dxPerformanceCurrentFilter", x);
+								var date = new Date;
+								date.setDate(date.getDate() + 10000);
+                                setCookie("dxPerformanceCurrentFilter", x, date);
                                 document.location = document.location;
                             }
                         }
