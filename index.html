@@ -8,7 +8,7 @@
     <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/16.1.4/css/dx.common.css" />
     <link rel="stylesheet" type="text/css" href="http://cdn3.devexpress.com/jslib/16.1.4/css/dx.light.css" />
 
-    <title>Pdf Performance Monitor</title>
+    <title>DX Performance Monitor</title>
 
     <style>
         #chartContainer > div.range {
@@ -36,7 +36,7 @@
 		function getCookie(name) {
 			var cookie = " " + document.cookie;
 			var search = " " + name + "=";
-			var setStr = "";
+			var setStr = "PDF";
 			var offset = 0;
 			var end = 0;
 			if (cookie.length > 0) {
@@ -68,7 +68,7 @@
             var legend;
 
             $.ajax({
-                url: "https://dxperformance.table.core.windows.net/Vendors?sv=2015-04-05&si=Vendors-154CCC7DFC9&tn=vendors&sig=bTsCUNL49D1QxzMAVZN0x0C4ODJhcXVrlb7aon3l8mQ%3D",
+                url: "https://dxperformance2.table.core.windows.net:443/Vendors?st=2017-03-14T06%3A28%3A00Z&se=2117-03-15T06%3A28%3A00Z&sp=r&sv=2015-12-11&tn=vendors&sig=b2HcCwCo9008iXrlU2a%2FMaRwgMM3dpEZsaGpKdAxh2w%3D",
                 type: 'GET',
                 beforeSend: function (xhr) {
                     xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
@@ -78,7 +78,7 @@
                 }
             });
             $.ajax({
-                url: "https://dxperformance.table.core.windows.net/Tests?sv=2015-04-05&si=Tests-154CCC71378&tn=tests&sig=WlSf0nmT36j4%2BenF48Y6%2BKb4O0jOSKcE4c7E76deUkI%3D",
+                url: "https://dxperformance2.table.core.windows.net:443/Tests?st=2017-03-14T06%3A28%3A00Z&se=2117-03-15T06%3A28%3A00Z&sp=r&sv=2015-12-11&tn=tests&sig=ublWxOJR4v9R7AMza1SL0tvK0gwuDFZj5Zk8fkvBxmY%3D",
                 type: 'GET',
                 beforeSend: function (xhr) {
                     xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
@@ -145,7 +145,7 @@
                             return d.getFullYear() + '-' + month + "-" + date + 'T00:00:00';
                         };
                         $.ajax({
-                            url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token + "&$filter=PartitionKey+gt+'" + dateFormat(newNow) + "'&sort=-PartitionKey,RowKey",
+                            url: "https://dxperformance2.table.core.windows.net/" + testCase.RowKey + testCase.Token + "&$filter=PartitionKey+gt+'" + dateFormat(newNow) + "'&sort=-PartitionKey,RowKey",
                             type: 'GET',
                             beforeSend: function (xhr) {
                                 xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
@@ -156,7 +156,7 @@
                                     var newSkip = new Date(skip);
                                     newSkip.setDate(skip.getDate() - 3);
                                     $.ajax({
-                                        url: "https://dxperformance.table.core.windows.net/" + testCase.RowKey + testCase.Token +
+                                        url: "https://dxperformance2.table.core.windows.net/" + testCase.RowKey + testCase.Token +
                                              "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')&sort=-PartitionKey,RowKey",
                                         type: 'GET',
                                         beforeSend: function (xhr) {
@@ -164,7 +164,7 @@
                                         },
                                         success: function (data) {
                                             var results = data.value;
-                                            if (results && (new Date() - newSkip) < 2 * 30 * 24 * 60 * 60 * 1000) {
+                                            if (results && (new Date() - newSkip) < 24 * 30 * 24 * 60 * 60 * 1000) {
                                                 startSubquery(newSkip).then(function (subqueryResults) {
                                                     $def.resolve(subqueryResults.concat(results));
                                                 });
