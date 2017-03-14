@@ -187,7 +187,7 @@
                         $range.appendTo($container);
                         $icon.on("click", function() {
                             document.location = location.protocol + '//' + location.host + location.pathname + 
-                            "?filter=" + $header.text() + 
+                            "?filter=" + encodeURIComponent($header.text()) + 
                             "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue + 
                             "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue + 
                             "&period=" + period;
