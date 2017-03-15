@@ -155,6 +155,14 @@
                                 }
                             }
                         });
+                    else {
+                        $("#clearFilter").dxButton({
+                            text: "Clear Filter",
+                            onClick: function() {
+                                document.location = location.protocol + '//' + location.host + location.pathname;
+                            }
+                        });
+                    }
                     if(urlParameters["period"])
                         $("#periodFilter").hide();
                     var $testsFilter = $("#testsFilter");
@@ -188,8 +196,8 @@
                         $icon.on("click", function() {
                             document.location = location.protocol + '//' + location.host + location.pathname + 
                             "?filter=" + encodeURIComponent($header.text()) + 
-                            "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue + 
-                            "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue + 
+                            "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue.getTime() + 
+                            "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue.getTime() + 
                             "&period=" + period;
                         });
                         if(urlParameters["filter"]) {
@@ -272,9 +280,13 @@
                                     if (!updateRange)
                                         rangeSelector.setSelectedRange(original);
                                     if(urlParameters["start"] && urlParameters["end"]) {
+                                        var start = parseInt(urlParameters["start"]);
+                                        start = start ? start : urlParameters["start"];
+                                        var end = parseInt(urlParameters["end"]);
+                                        end = end ? end : urlParameters["end"];
                                         rangeSelector.setSelectedRange({
-                                            startValue: urlParameters["start"],
-                                            endValue: urlParameters["end"]
+                                            startValue: new Date(start),
+                                            endValue: new Date(end)
                                         });
                                     }
                                     rangeSelector.option("onSelectedRangeChanged", originalHandler)
@@ -442,6 +454,7 @@
 <body>
 	<div id="testsFilter"></div>
     <div style="display:flex">
+        <div id="clearFilter"></div>
         <div id="periodFilter" style="width:200px"></div>
         <div id="tagBoxFilter" style="flex:1"></div>
     </div>
