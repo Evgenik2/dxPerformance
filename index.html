@@ -69,6 +69,28 @@
                 }
             });
         }
+        function hideSeries(testCase, x) {
+            var chart1 = $("#chartContainer" + testCase.RowKey).dxChart('instance');
+            var chart2 = $("#memoryChartContainer" + testCase.RowKey).dxChart('instance');
+            if(chart1) {
+                var series1 = chart1.getSeriesByName(x)
+                if(series1)
+                    series1.hide();
+            }
+            if(chart2) {
+                var series2 = chart2.getSeriesByName(x);
+                if(series2)
+                    series2.hide();
+            }
+        }
+        function seriesToHide(testCase) {
+            var chart = $("#chartContainer" + testCase.RowKey).dxChart('instance');
+            return chart.getAllSeries().filter(function(x) {
+                return !x.isVisible();
+            }).map(function(x) {
+                return x.name;
+            });
+        }
         $(document).ready(function () {
             var chartId = 0;
             var legend;
@@ -198,7 +220,8 @@
                             "?filter=" + encodeURIComponent($header.text()) + 
                             "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue.getTime() + 
                             "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue.getTime() + 
-                            "&period=" + period;
+                            "&period=" + period + 
+                            "&hide=" + seriesToHide(testCase).join(",");
                         });
                         if(urlParameters["filter"]) {
                             $timeChartContainer.hide();
@@ -287,6 +310,11 @@
                                         rangeSelector.setSelectedRange({
                                             startValue: new Date(start),
                                             endValue: new Date(end)
+                                        });
+                                    }
+                                    if(urlParameters["hide"]) {
+                                        urlParameters["hide"].split(",").forEach(function(x, _){
+                                           hideSeries(testCase, x);
                                         });
                                     }
                                     rangeSelector.option("onSelectedRangeChanged", originalHandler)
@@ -429,11 +457,15 @@
                                         var memoryChart = $memoryChartContainer.dxChart("instance"),
                                             timeChart = $timeChartContainer.dxChart("instance");
                                         if (timeChart.option("needRealData")) {
+                                            var series = seriesToHide(testCase);
                                             console.log("Data update happens");
 											if(memoryChart)
 												memoryChart.option("dataSource", testCase.data);
                                             timeChart.option("dataSource", testCase.data);
                                             timeChart.option("needRealData", false);
+                                            series.forEach(function(x, _) {
+                                                hideSeries(testCase, x);
+                                            });
                                         }
 										if(memoryChart)
 											memoryChart.zoomArgument(e.startValue, e.endValue);
