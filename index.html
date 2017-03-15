@@ -11,6 +11,12 @@
     <title>DX Performance Monitor</title>
 
     <style>
+        #chartContainer > div.progress {
+            width: 100%;
+            display: inline-block;
+            height: 120px; 
+            box-sizing: border-box;
+        }
         #chartContainer > div.range {
             width: 100%;
             display: inline-block;
@@ -36,7 +42,7 @@
 		function getCookie(name) {
 			var cookie = " " + document.cookie;
 			var search = " " + name + "=";
-			var setStr = "PDF";
+			var setStr = "";
 			var offset = 0;
 			var end = 0;
 			if (cookie.length > 0) {
@@ -63,9 +69,54 @@
                 }
             });
         }
+        function hideSeries(testCase, x) {
+            var chart1 = $("#chartContainer" + testCase.RowKey).dxChart('instance');
+            var chart2 = $("#memoryChartContainer" + testCase.RowKey).dxChart('instance');
+            if(chart1) {
+                var series1 = chart1.getSeriesByName(x)
+                if(series1)
+                    series1.hide();
+            }
+            if(chart2) {
+                var series2 = chart2.getSeriesByName(x);
+                if(series2)
+                    series2.hide();
+            }
+        }
+        function seriesToHide(testCase) {
+            var chart = $("#chartContainer" + testCase.RowKey).dxChart('instance');
+            return chart.getAllSeries().filter(function(x) {
+                return !x.isVisible();
+            }).map(function(x) {
+                return x.name;
+            });
+        }
         $(document).ready(function () {
             var chartId = 0;
             var legend;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const urlParameters = function () {
+                      var query_string = {};
+                      var query = window.location.search.substring(1);
+                      var vars = query.split("&");
+                      for (var i=0;i<vars.length;i++) {
+                        var pair = vars[i].split("=");
+                            // If first entry with this name
+                        if (typeof query_string[pair[0]] === "undefined") {
+                          query_string[pair[0]] = decodeURIComponent(pair[1]);
+                            // If second entry with this name
+                        } else if (typeof query_string[pair[0]] === "string") {
+                          var arr = [ query_string[pair[0]],decodeURIComponent(pair[1]) ];
+                          query_string[pair[0]] = arr;
+                            // If third or later entry with this name
+                        } else {
+                          query_string[pair[0]].push(decodeURIComponent(pair[1]));
+                        }
+                      } 
+                      return query_string;
+                    }();
+            const period = parseInt(urlParameters["period"] || localStorage["dxPeriod"] || (7 * oneDay).toString());
+
 
             $.ajax({
                 url: "https://dxperformance2.table.core.windows.net:443/Vendors?st=2017-03-14T06%3A28%3A00Z&se=2117-03-15T06%3A28%3A00Z&sp=r&sv=2015-12-11&tn=vendors&sig=b2HcCwCo9008iXrlU2a%2FMaRwgMM3dpEZsaGpKdAxh2w%3D",
@@ -91,23 +142,51 @@
                             partitionKeys.push(val.PartitionKey); 
                         return partitionKeys;
                     }, []);
-					var filter = (getCookie("dxPerformanceCurrentFilter") || "").split(",").filter(function(n){ return n != "" });
-                    $("#tagBoxFilter").dxTagBox({
-                        items: keys,
-                        showSelectionControls: true,
-                        applyValueMode: "useButtons",
-                        value: filter,
-                        onSelectionChanged: (e) => {
-                            var x = e.component.option("selectedItems").join(",");
-                            if(x !== getCookie("dxPerformanceCurrentFilter")) {
-								
-								var date = new Date;
-								date.setDate(date.getDate() + 10000);
-                                setCookie("dxPerformanceCurrentFilter", x, date, "/dxPerformance");
+                    $("#periodFilter").dxSelectBox({
+                        displayExpr: "Value",
+                        valueExpr: "Id",
+                        value: period,
+                        items: [ {Id: 7 * oneDay, Value: "1 Week"}, 
+                                {Id: 31 * oneDay, Value: "1 Month"},
+                                {Id: 186 * oneDay, Value: "6 Months"},
+                                {Id: 365 * oneDay, Value: "1 Year"},
+                                {Id: 2 * 365 * oneDay, Value: "2 Years"},
+                                {Id: 5 * 365 * oneDay, Value: "5 Years"}],
+                        onValueChanged: (e) => {
+                            var x = e.value;
+                            if(x != localStorage["dxPeriod"]) {
+                                localStorage["dxPeriod"] = x;
                                 document.location = document.location;
                             }
                         }
                     });
+                    
+                   
+					var filter = (urlParameters["filter"] || localStorage["dxPerformanceCurrentFilter"] || "PDF").split(",").filter(function(n){ return n != "" });
+                    if(!urlParameters["filter"])
+                        $("#tagBoxFilter").dxTagBox({
+                            items: keys,
+                            showSelectionControls: true,
+                            applyValueMode: "useButtons",
+                            value: filter,
+                            onSelectionChanged: (e) => {
+                                var x = e.component.option("selectedItems").join(",");
+                                if(x != localStorage["dxPerformanceCurrentFilter"]) {
+                                    localStorage["dxPerformanceCurrentFilter"] = x;
+                                    document.location = document.location;
+                                }
+                            }
+                        });
+                    else {
+                        $("#clearFilter").dxButton({
+                            text: "Clear Filter",
+                            onClick: function() {
+                                document.location = location.protocol + '//' + location.host + location.pathname;
+                            }
+                        });
+                    }
+                    if(urlParameters["period"])
+                        $("#periodFilter").hide();
                     var $testsFilter = $("#testsFilter");
 					filter = filter.map(function (str) {
 						return str.replace(/\s/g, '').replace(/%20/g, '').toUpperCase();
@@ -120,6 +199,9 @@
 					$.each(testsList, function (_, testCase) {
                         var $container = $("#chartContainer");
                         var $header = $("<h1/>").text(testCase.Name).appendTo($container);
+                        var $icon = $('<svg style="cursor:pointer;margin:10px" width="16" height="16" id="icon' + testCase.RowKey + '" viewBox="0 0 20 20"><path d="M16.469,8.924l-2.414,2.413c-0.156,0.156-0.408,0.156-0.564,0c-0.156-0.155-0.156-0.408,0-0.563l2.414-2.414c1.175-1.175,1.175-3.087,0-4.262c-0.57-0.569-1.326-0.883-2.132-0.883s-1.562,0.313-2.132,0.883L9.227,6.511c-1.175,1.175-1.175,3.087,0,4.263c0.288,0.288,0.624,0.511,0.997,0.662c0.204,0.083,0.303,0.315,0.22,0.52c-0.171,0.422-0.643,0.17-0.52,0.22c-0.473-0.191-0.898-0.474-1.262-0.838c-1.487-1.485-1.487-3.904,0-5.391l2.414-2.413c0.72-0.72,1.678-1.117,2.696-1.117s1.976,0.396,2.696,1.117C17.955,5.02,17.955,7.438,16.469,8.924 M10.076,7.825c-0.205-0.083-0.437,0.016-0.52,0.22c-0.083,0.205,0.016,0.437,0.22,0.52c0.374,0.151,0.709,0.374,0.997,0.662c1.176,1.176,1.176,3.088,0,4.263l-2.414,2.413c-0.569,0.569-1.326,0.883-2.131,0.883s-1.562-0.313-2.132-0.883c-1.175-1.175-1.175-3.087,0-4.262L6.51,9.227c0.156-0.155,0.156-0.408,0-0.564c-0.156-0.156-0.408-0.156-0.564,0l-2.414,2.414c-1.487,1.485-1.487,3.904,0,5.391c0.72,0.72,1.678,1.116,2.696,1.116s1.976-0.396,2.696-1.116l2.414-2.413c1.487-1.486,1.487-3.905,0-5.392C10.974,8.298,10.55,8.017,10.076,7.825"></path></svg>');
+                        $icon.appendTo($header);
+                        $icon.hide();
                         var $description = $("<h5/>").text(testCase.Description).appendTo($container);
                         var $timeChartContainer = $("<div class='chartCustTime' id='chartContainer" + testCase.RowKey + "'/>");
                         $timeChartContainer.appendTo($container);
@@ -128,8 +210,23 @@
 							$memoryChartContainer.appendTo($container);
 						else
 							$timeChartContainer.width('100%'); 
+                        var $progress = $("<div class='progress' id='progress" + testCase.RowKey + "'/>");
+                        $progress.appendTo($container);
                         var $range = $("<div class='range' id='range" + testCase.RowKey + "'/>");
+                        $range.hide();
                         $range.appendTo($container);
+                        $icon.on("click", function() {
+                            document.location = location.protocol + '//' + location.host + location.pathname + 
+                            "?filter=" + encodeURIComponent($header.text()) + 
+                            "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue.getTime() + 
+                            "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue.getTime() + 
+                            "&period=" + period + 
+                            "&hide=" + seriesToHide(testCase).join(",");
+                        });
+                        if(urlParameters["filter"]) {
+                            $timeChartContainer.hide();
+                            $memoryChartContainer.hide();
+                        }
                     });
                     $.each(testsList, function (_, testCase) {
                         var now = new Date();
@@ -151,6 +248,12 @@
                                 xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
                             },
                             success: function (data) {
+                                var $progressContainer = $("#progress" + testCase.RowKey);
+                                $progressContainer.dxProgressBar({
+                                    max: period,
+                                    min: 0,
+                                    value: 0
+                                });
                                 var startSubquery = function (skip) {
                                     var $def = $.Deferred();
                                     var newSkip = new Date(skip);
@@ -164,11 +267,22 @@
                                         },
                                         success: function (data) {
                                             var results = data.value;
-                                            if (results && (new Date() - newSkip) < 24 * 30 * 24 * 60 * 60 * 1000) {
+                                            var progressValue = (new Date() - newSkip);
+                                            $("#progress" + testCase.RowKey).dxProgressBar("instance").option("value", progressValue);
+                                            if (progressValue < period) {
                                                 startSubquery(newSkip).then(function (subqueryResults) {
                                                     $def.resolve(subqueryResults.concat(results));
                                                 });
                                             } else {
+                                                var $timeChartContainer = $("#chartContainer" + testCase.RowKey);
+                                                var $memoryChartContainer = $("#memoryChartContainer" + testCase.RowKey);
+                                                $timeChartContainer.show();
+                                                $memoryChartContainer.show();
+                                                $("#progress" + testCase.RowKey).hide();
+                                                $("#range" + testCase.RowKey).show();
+                                                if(!urlParameters["filter"])
+                                                $("#icon" + testCase.RowKey).show();
+
                                                 $def.resolve(results);
                                                 return;
                                             }
@@ -182,9 +296,27 @@
                                     var rangeSelector = $rangeChartContainer.dxRangeSelector("instance");
                                     var original = rangeSelector.getSelectedRange(),
                                         originalHandler = rangeSelector.option("onSelectedRangeChanged");
-                                    rangeSelector.option("onSelectedRangeChanged", null)
+                                    var updateRange = urlParameters["period"] || period > 8 * oneDay;
+                                    if (!updateRange)
+                                        rangeSelector.option("onSelectedRangeChanged", null)
                                     rangeSelector.option("dataSource", testCase.data);
-                                    rangeSelector.setSelectedRange(original);
+                                    if (!updateRange)
+                                        rangeSelector.setSelectedRange(original);
+                                    if(urlParameters["start"] && urlParameters["end"]) {
+                                        var start = parseInt(urlParameters["start"]);
+                                        start = start ? start : urlParameters["start"];
+                                        var end = parseInt(urlParameters["end"]);
+                                        end = end ? end : urlParameters["end"];
+                                        rangeSelector.setSelectedRange({
+                                            startValue: new Date(start),
+                                            endValue: new Date(end)
+                                        });
+                                    }
+                                    if(urlParameters["hide"]) {
+                                        urlParameters["hide"].split(",").forEach(function(x, _){
+                                           hideSeries(testCase, x);
+                                        });
+                                    }
                                     rangeSelector.option("onSelectedRangeChanged", originalHandler)
                                     window.range = $rangeChartContainer.dxRangeSelector("instance");
                                 });
@@ -325,11 +457,15 @@
                                         var memoryChart = $memoryChartContainer.dxChart("instance"),
                                             timeChart = $timeChartContainer.dxChart("instance");
                                         if (timeChart.option("needRealData")) {
+                                            var series = seriesToHide(testCase);
                                             console.log("Data update happens");
 											if(memoryChart)
 												memoryChart.option("dataSource", testCase.data);
                                             timeChart.option("dataSource", testCase.data);
                                             timeChart.option("needRealData", false);
+                                            series.forEach(function(x, _) {
+                                                hideSeries(testCase, x);
+                                            });
                                         }
 										if(memoryChart)
 											memoryChart.zoomArgument(e.startValue, e.endValue);
@@ -349,7 +485,11 @@
 </head>
 <body>
 	<div id="testsFilter"></div>
-    <div id="tagBoxFilter"></div>
+    <div style="display:flex">
+        <div id="clearFilter"></div>
+        <div id="periodFilter" style="width:200px"></div>
+        <div id="tagBoxFilter" style="flex:1"></div>
+    </div>
     <div id="chartContainer" style="width: 100%; height:400px;">
     </div>
 </body>
