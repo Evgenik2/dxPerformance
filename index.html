@@ -32,32 +32,115 @@
         }
     </style>
     <script>
-		function setCookie (name, value, expires, path, domain, secure) {
-			document.cookie = name + "=" + escape(value) +
-				((expires) ? "; expires=" + expires.toUTCString() : "") +
-				((path) ? "; path=" + path : "") +
-				((domain) ? "; domain=" + domain : "") +
-				((secure) ? "; secure" : "");
-		}
-		function getCookie(name) {
-			var cookie = " " + document.cookie;
-			var search = " " + name + "=";
-			var setStr = "";
-			var offset = 0;
-			var end = 0;
-			if (cookie.length > 0) {
-				offset = cookie.indexOf(search);
-				if (offset != -1) {
-					offset += search.length;
-					end = cookie.indexOf(";", offset)
-					if (end == -1) {
-						end = cookie.length;
-					}
-					setStr = unescape(cookie.substring(offset, end));
-				}
-			}
-			return(setStr);
-		}
+        const oneDay = 1000 * 60 * 60 * 24;
+        var indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB,
+        IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction,
+        baseName = "performanceBase9";
+
+        function logerr(err){
+            console.log(err);
+        }
+
+        function connectDB(tableName, f){
+            var request = indexedDB.open(baseName);
+            request.onerror = logerr;
+            request.onsuccess = function(){
+                f(request.result);
+            }
+        }
+
+        function CreateObjectStore(storeName, f) {
+            var request = indexedDB.open(baseName);
+            request.onsuccess = function (e){
+                var database = e.target.result;
+                var version =  parseInt(database.version);
+                database.close();
+                var secondRequest = indexedDB.open(baseName, version+1);
+                secondRequest.onerror = function() {};
+                secondRequest.onupgradeneeded = function (e) {
+                    var database = e.target.result;
+                    if(!database.objectStoreNames.contains(storeName)) {
+                        var objectStore = database.createObjectStore(storeName, {
+                            keyPath: "day"
+                        });
+                    }
+                };
+                secondRequest.onsuccess = function (e) {
+                    e.target.result.close();
+                    f();
+                }
+            }
+        }
+        function getDay(date) {
+            return Math.floor(new Date(date).getTime() / oneDay)
+        }
+        function getRecords(tableName, start, end, f){
+            connectDB(tableName, function(db){
+                var rows = [];
+                var aggregate = [];
+                start = getDay(start);
+                end = getDay(end);
+                var len = end - start;
+                var request = db.transaction([tableName], "readonly").objectStore(tableName).openCursor(IDBKeyRange.bound(start, end, true, false));
+                request.onerror = logerr;
+                request.onsuccess = function(e){
+                    var cursor = e.target.result;
+                    if(cursor){
+                        rows = rows.concat(cursor.value.data);
+                        aggregate = aggregate.concat(cursor.value.aggregate);
+                        len--;
+                        cursor.continue();
+                    }
+                    else {
+                        if(len == 0)
+                            f(rows, aggregate);
+                        else
+                            f(-1, -1);
+                    }
+                }
+            });
+        }
+        var groupByDay = function(xs, dates) {
+            let res = xs.reduce(function(rv, x) {
+                day = getDay(x.PartitionKey);
+                (rv[day] = rv[day] || []).push(x);
+                return rv;
+            }, {});
+            dates.forEach(function(x, _) {
+                res[x] = res[x] || [];
+            });
+            return res;
+        };
+        function setRecords(tableName, data, dates){
+            var res = [];
+            $.each(groupByDay(data, dates), function(key, value) {
+                var aggregate = value.reduce(function(retv, x) {
+                    var val = (retv[x.RowKey] = retv[x.RowKey] || { count: 0, Memory: 0, Elapsed: 0 });
+                    val.count++;
+                    val.PartitionKey = x.PartitionKey;
+                    val.RowKey = x.RowKey;
+                    val.Memory += parseInt(x.Memory);
+                    val.Elapsed += x.Elapsed;
+                    return retv;
+                }, {});
+                aggregate = Object.keys(aggregate).map(function(key){
+                                return aggregate[key];
+                            });
+                aggregate.forEach(function(x) { 
+                    x.Memory = x.Memory / x.count;
+                    x.Elapsed = x.Elapsed / x.count;
+                });
+                res = res.concat(aggregate);
+                connectDB(tableName, function(db) {
+                    var request = db.transaction([tableName], "readwrite").objectStore(tableName).put({ day: parseInt(key), data: value, aggregate: aggregate });
+                    request.onerror = logerr;
+                    request.onsuccess = function(){
+                    }
+                });
+            });
+            return res;
+        }
+  
         var getPreparedData = function (results) {
             return $.map(results, function (obj) {
                 return {
@@ -94,30 +177,134 @@
         $(document).ready(function () {
             var chartId = 0;
             var legend;
-            const oneDay = 1000 * 60 * 60 * 24;
             const urlParameters = function () {
-                      var query_string = {};
-                      var query = window.location.search.substring(1);
-                      var vars = query.split("&");
-                      for (var i=0;i<vars.length;i++) {
-                        var pair = vars[i].split("=");
-                            // If first entry with this name
-                        if (typeof query_string[pair[0]] === "undefined") {
-                          query_string[pair[0]] = decodeURIComponent(pair[1]);
-                            // If second entry with this name
-                        } else if (typeof query_string[pair[0]] === "string") {
-                          var arr = [ query_string[pair[0]],decodeURIComponent(pair[1]) ];
-                          query_string[pair[0]] = arr;
-                            // If third or later entry with this name
-                        } else {
-                          query_string[pair[0]].push(decodeURIComponent(pair[1]));
-                        }
-                      } 
-                      return query_string;
-                    }();
+                var query_string = {};
+                var query = window.location.search.substring(1);
+                var vars = query.split("&");
+                for (var i = 0; i < vars.length; i++) {
+                    var pair = vars[i].split("=");
+                    if (typeof query_string[pair[0]] === "undefined")
+                        query_string[pair[0]] = decodeURIComponent(pair[1]);
+                    else if (typeof query_string[pair[0]] === "string")
+                        query_string[pair[0]] = [ query_string[pair[0]], decodeURIComponent(pair[1]) ];
+                    else 
+                        query_string[pair[0]].push(decodeURIComponent(pair[1]));
+                } 
+                return query_string;
+            }();
             const period = parseInt(urlParameters["period"] || localStorage["dxPeriod"] || (7 * oneDay).toString());
+            const indicator = parseInt(urlParameters["indicator"] || localStorage["dxIndicator"] || 0);
+            const indicators = [ {Id: 0, Value: "Value"}, 
+                                 {Id: 1, Value: "Trend line"},
+                                 {Id: 2, Value: "EMA"}                                
+                               ];
+            function EMACalc(mArray, start, end, mRange) {
+                let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
+                let k = 2 / (mRange + 1);
+                let a = mArray.filter(function(x) { return start == undefined || (x.arg > start && x.arg < end); }).map(function(x) {
+                      return {
+                          vendor: x.vendor + indicatorName,
+                          arg: x.arg,
+                          elapsed: x.elapsed,
+                          memory: x.memory
+                      };
+                });
+                let emaArray = {};  
+                for (var i = 0; i < a.length; i++) {
+                    let ema = emaArray[a[i].vendor];
+                    if(ema != undefined) {
+                        a[i].elapsed = a[i].elapsed * k + ema.elapsed * (1 - k);
+                        a[i].memory = a[i].memory * k + ema.memory * (1 - k);
+                    }
+                    emaArray[a[i].vendor] = a[i];
+                }
+                return a;
+            }
 
-
+            function Trend(data, start, end) {
+                let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
+                let now = new Date().getTime();
+                let fdata = data.filter(function(x) { return start == undefined || (x.arg > start && x.arg < end); }).map(function(x) { 
+                        return {
+                            time: (x.arg.getTime() - now) / 60000,
+                            vendor: x.vendor + indicatorName,
+                            arg: x.arg,
+                            elapsed: x.elapsed,
+                            memory: x.memory
+                        };
+                    });
+                let av = fdata.reduce(function(a, b) {
+                        let val = (a[b.vendor] = a[b.vendor] || { time: 0, memory: 0, elapsed: 0, te: 0, tm: 0, tt: 0, len: 0 });
+                        val.len += 1;
+                        val.time += b.time; 
+                        val.tt += b.time * b.time;
+                        val.elapsed += b.elapsed; 
+                        val.memory += b.memory; 
+                        val.te += b.time * b.elapsed;
+                        val.tm += b.time * b.memory;
+                        return a;
+                    }, { });
+                Object.keys(av).forEach(function(x, _) {
+                    av[x].time /= av[x].len;
+                    av[x].elapsed /= av[x].len;
+                    av[x].memory /= av[x].len;
+                    av[x].be = (av[x].te - av[x].len * av[x].time * av[x].elapsed) / (av[x].tt - av[x].len * av[x].time * av[x].time);
+                    av[x].bm = (av[x].tm - av[x].len * av[x].time * av[x].memory) / (av[x].tt - av[x].len * av[x].time * av[x].time);
+                    av[x].ae = (av[x].elapsed - av[x].time * av[x].be);
+                    av[x].am = (av[x].memory - av[x].time * av[x].bm);
+                });
+                fdata.forEach(function(x, _) { 
+                        let avx = av[x.vendor];
+                        x.elapsed = avx.ae + avx.be * x.time; 
+                        x.memory = avx.am + avx.bm * x.time;
+                    });
+                return fdata;
+            }
+            function ApplyIndicator(data, start, end) {
+                switch(indicator) {
+                    case 0:
+                        return data;
+                    case 1:
+                        return data.concat(Trend(data, start, end));
+                    case 2: 
+                        return data.concat(EMACalc(data, start, end, 10));
+                }
+                return data;
+            }
+            
+            function rangeChanged(testCase) {
+                let $timeChartContainer = $("#chartContainer" + testCase.RowKey);
+                let $memoryChartContainer = $("#memoryChartContainer" + testCase.RowKey);
+                let $rangeChartContainer = $("#range" + testCase.RowKey);
+                let rangeChart = $rangeChartContainer.dxRangeSelector("instance");
+                let e = rangeChart.option("selectedRange");
+                let memoryChart = $memoryChartContainer.dxChart("instance"),
+                    timeChart = $timeChartContainer.dxChart("instance");
+                let agregate = (getDay(e.endValue) - getDay(e.startValue)) > 45;
+                if (timeChart.option("needRealData")) {
+                    let series = seriesToHide(testCase);
+                    console.log("Data update happens");
+                    if(memoryChart)
+                        memoryChart.option("dataSource", ApplyIndicator(agregate ? testCase.aggregate : testCase.data, e.startValue, e.endValue));
+                    timeChart.option("dataSource", ApplyIndicator(agregate ? testCase.aggregate : testCase.data, e.startValue, e.endValue));
+                    if(!agregate) 
+                        timeChart.option("agregated", false);
+                    if(indicator == 0)
+                        timeChart.option("needRealData", false);
+                    series.forEach(function(x, _) {
+                        hideSeries(testCase, x);
+                    });
+                }
+                if(!agregate && timeChart.option("agregated")) {
+                    if(memoryChart)
+                        memoryChart.option("dataSource", testCase.data);
+                    timeChart.option("dataSource", testCase.data);
+                    timeChart.option("agregated", false);
+                }
+                if(memoryChart)
+                    memoryChart.zoomArgument(e.startValue, e.endValue);
+                timeChart.zoomArgument(e.startValue, e.endValue);
+            }
             $.ajax({
                 url: "https://dxperformance2.table.core.windows.net:443/Vendors?st=2017-03-14T06%3A28%3A00Z&se=2117-03-15T06%3A28%3A00Z&sp=r&sv=2015-12-11&tn=vendors&sig=b2HcCwCo9008iXrlU2a%2FMaRwgMM3dpEZsaGpKdAxh2w%3D",
                 type: 'GET',
@@ -136,12 +323,25 @@
                 },
                 success: function (data) {
                     var testsList = data.value;
-				
+                    
                     var keys = data.value.reduce((partitionKeys, val) => { 
                         if(partitionKeys.indexOf(val.PartitionKey) === -1)
                             partitionKeys.push(val.PartitionKey); 
                         return partitionKeys;
                     }, []);
+                    $("#indicatorsFilter").dxSelectBox({
+                        displayExpr: "Value",
+                        valueExpr: "Id",
+                        value: indicator,
+                        items: indicators,
+                        onValueChanged: (e) => {
+                            let x = e.value;
+                            if(x != localStorage["dxIndicator"]) {
+                                localStorage["dxIndicator"] = x;
+                                document.location = document.location;
+                            }
+                        }
+                    });
                     $("#periodFilter").dxSelectBox({
                         displayExpr: "Value",
                         valueExpr: "Id",
@@ -153,7 +353,7 @@
                                 {Id: 2 * 365 * oneDay, Value: "2 Years"},
                                 {Id: 5 * 365 * oneDay, Value: "5 Years"}],
                         onValueChanged: (e) => {
-                            var x = e.value;
+                            let x = e.value;
                             if(x != localStorage["dxPeriod"]) {
                                 localStorage["dxPeriod"] = x;
                                 document.location = document.location;
@@ -185,6 +385,8 @@
                             }
                         });
                     }
+                    if(urlParameters["indicator"])
+                        $("#indicatorsFilter").hide();
                     if(urlParameters["period"])
                         $("#periodFilter").hide();
                     var $testsFilter = $("#testsFilter");
@@ -196,6 +398,20 @@
 							return test;
 						return;
 					});
+                    testsList = testsList.sort(function(a, b) { return (b.Priority == undefined ? 0 : b.Priority) - (a.Priority == undefined ? 0 : a.Priority); });
+                    function createTable(i) {
+                        var $def = $.Deferred();
+                        if(i<testsList.length)
+                            CreateObjectStore(testsList[i].RowKey, function(){
+                                createTable(i+1).then(function(){
+                                    $def.resolve();
+                                });
+                            });
+                        else $def.resolve();
+                        return $def;
+                    }
+                    createTable(0).then(function(){
+
 					$.each(testsList, function (_, testCase) {
                         var $container = $("#chartContainer");
                         var $header = $("<h1/>").text(testCase.Name).appendTo($container);
@@ -221,6 +437,7 @@
                             "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue.getTime() + 
                             "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue.getTime() + 
                             "&period=" + period + 
+                            "&indicator=" + indicator + 
                             "&hide=" + seriesToHide(testCase).join(",");
                         });
                         if(urlParameters["filter"]) {
@@ -229,14 +446,14 @@
                         }
                     });
                     $.each(testsList, function (_, testCase) {
-                        var now = new Date();
-                        var newNow = new Date();
+                        var now = new Date((getDay(new Date()) + 1) * oneDay);
+                        var newNow = new Date(now);
                         newNow.setDate(now.getDate() - 3);
                         var dateFormat = function (d) {
                             var month = d.getMonth() + 1;
                             if (month < 10)
                                 month = '0' + month;
-                            var date = d.getDate() + 1;
+                            var date = d.getDate();
                             if (date < 10)
                                 date = '0' + date;
                             return d.getFullYear() + '-' + month + "-" + date + 'T00:00:00';
@@ -258,41 +475,57 @@
                                     var $def = $.Deferred();
                                     var newSkip = new Date(skip);
                                     newSkip.setDate(skip.getDate() - 3);
-                                    $.ajax({
-                                        url: "https://dxperformance2.table.core.windows.net/" + testCase.RowKey + testCase.Token +
-                                             "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')&sort=-PartitionKey,RowKey",
-                                        type: 'GET',
-                                        beforeSend: function (xhr) {
-                                            xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
-                                        },
-                                        success: function (data) {
-                                            var results = data.value;
-                                            var progressValue = (new Date() - newSkip);
-                                            $("#progress" + testCase.RowKey).dxProgressBar("instance").option("value", progressValue);
-                                            if (progressValue < period) {
-                                                startSubquery(newSkip).then(function (subqueryResults) {
-                                                    $def.resolve(subqueryResults.concat(results));
-                                                });
-                                            } else {
-                                                var $timeChartContainer = $("#chartContainer" + testCase.RowKey);
-                                                var $memoryChartContainer = $("#memoryChartContainer" + testCase.RowKey);
-                                                $timeChartContainer.show();
-                                                $memoryChartContainer.show();
-                                                $("#progress" + testCase.RowKey).hide();
-                                                $("#range" + testCase.RowKey).show();
-                                                if(!urlParameters["filter"])
-                                                $("#icon" + testCase.RowKey).show();
+                                    function successSubQuery(results) {
+                                        var progressValue = (new Date() - newSkip);
+                                        $("#progress" + testCase.RowKey).dxProgressBar("instance").option("value", progressValue);
+                                        if (progressValue < period) {
+                                            startSubquery(newSkip).then(function (subqueryResults) {
+                                                $def.resolve(subqueryResults.concat(results));
+                                            });
+                                        } else {
+                                            var $timeChartContainer = $("#chartContainer" + testCase.RowKey);
+                                            var $memoryChartContainer = $("#memoryChartContainer" + testCase.RowKey);
+                                            $timeChartContainer.show();
+                                            $memoryChartContainer.show();
+                                            $("#progress" + testCase.RowKey).hide();
+                                            $("#range" + testCase.RowKey).show();
+                                            if(!urlParameters["filter"])
+                                            $("#icon" + testCase.RowKey).show();
 
-                                                $def.resolve(results);
-                                                return;
-                                            }
+                                            $def.resolve(results);
+                                            return;
                                         }
-                                    });
+                                    }
+                                    var start = dateFormat(newSkip);
+                                    var end = dateFormat(skip);
+                                    getRecords(testCase.RowKey, start, end, function(data, aggregate) {
+                                        if(data !== -1) {
+                                            successSubQuery(data);
+                                            testCase.aggregate = testCase.aggregate.concat(getPreparedData(aggregate));
+                                        } else
+                                            $.ajax({
+                                                url: "https://dxperformance2.table.core.windows.net/" + testCase.RowKey + testCase.Token +
+                                                     "&$filter=(PartitionKey+gt+'" + dateFormat(newSkip) + "')+and+(PartitionKey+lt+'" + dateFormat(skip) + "')&sort=-PartitionKey,RowKey",
+                                                type: 'GET',
+                                                beforeSend: function (xhr) {
+                                                    xhr.setRequestHeader('Accept', 'application/json;odata=nometadata');
+                                                },
+                                                success: function(data) {
+                                                    var results = data.value;
+                                                    const dates = [];
+                                                    for(var i = getDay(start); i < getDay(end); i++)
+                                                        dates.push(i);
+                                                    testCase.aggregate = testCase.aggregate.concat(getPreparedData(setRecords(testCase.RowKey, results, dates)));
+                                                    successSubQuery(results);
+                                                }
+                                            });
+                                    })
                                     return $def;
                                 }
                                 startSubquery(newNow).then(function (result) {
                                     testCase.data = getPreparedData(result).concat(testCase.data);
                                     $timeChartContainer.dxChart("option", "needRealData", true);
+                                    $timeChartContainer.dxChart("option", "agregated", period > 45 * oneDay);
                                     var rangeSelector = $rangeChartContainer.dxRangeSelector("instance");
                                     var original = rangeSelector.getSelectedRange(),
                                         originalHandler = rangeSelector.option("onSelectedRangeChanged");
@@ -321,17 +554,150 @@
                                     window.range = $rangeChartContainer.dxRangeSelector("instance");
                                 });
                                 testCase.data = getPreparedData(data.value);
+                                testCase.aggregate = getPreparedData(data.value);
                                 var legendCustomization = function () {
+                                    let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
                                     var sn = this.seriesName;
-                                    for (var i = -1, j = legend.length; ++i < j;)
+                                    for (var i = -1, j = legend.length; ++i < j;) {
                                         if (legend[i].RowKey == sn)
                                             return legend[i].Title;
+                                        if (sn === legend[i].RowKey + indicatorName)
+                                            return legend[i].Title + " " + indicatorName;
+                                    }
                                     return this.seriesName;
                                 };
+                                function rgbToHex(r, g, b) {
+                                    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                                }
+                                function rgb2hsv (rgb) {
+                                    var rr, gg, bb,
+                                        r = rgb.r / 255,
+                                        g = rgb.g / 255,
+                                        b = rgb.b / 255,
+                                        h, s,
+                                        v = Math.max(r, g, b),
+                                        diff = v - Math.min(r, g, b),
+                                        diffc = function(c){
+                                            return (v - c) / 6 / diff + 1 / 2;
+                                        };
+
+                                    if (diff == 0) {
+                                        h = s = 0;
+                                    } else {
+                                        s = diff / v;
+                                        rr = diffc(r);
+                                        gg = diffc(g);
+                                        bb = diffc(b);
+
+                                        if (r === v) {
+                                            h = bb - gg;
+                                        }else if (g === v) {
+                                            h = (1 / 3) + rr - bb;
+                                        }else if (b === v) {
+                                            h = (2 / 3) + gg - rr;
+                                        }
+                                        if (h < 0) {
+                                            h += 1;
+                                        }else if (h > 1) {
+                                            h -= 1;
+                                        }
+                                    }
+                                    return {
+                                        h: Math.round(h * 360),
+                                        s: Math.round(s * 100),
+                                        v: Math.round(v * 100)
+                                    };
+                                }
+                                function hsv2rgb(h, s, v) {
+                                    var r, g, b, i, f, p, q, t;
+                                    if (arguments.length === 1) {
+                                        s = h.s / 360.0, v = h.v / 100.0, h = h.h / 100.0;
+                                    }
+                                    i = Math.floor(h * 6);
+                                    f = h * 6 - i;
+                                    p = v * (1 - s);
+                                    q = v * (1 - f * s);
+                                    t = v * (1 - (1 - f) * s);
+                                    switch (i % 6) {
+                                        case 0: r = v, g = t, b = p; break;
+                                        case 1: r = q, g = v, b = p; break;
+                                        case 2: r = p, g = v, b = t; break;
+                                        case 3: r = p, g = q, b = v; break;
+                                        case 4: r = t, g = p, b = v; break;
+                                        case 5: r = v, g = p, b = q; break;
+                                    }
+                                    return {
+                                        r: Math.round(r * 255),
+                                        g: Math.round(g * 255),
+                                        b: Math.round(b * 255)
+                                    };
+                                }
+                                function colourNameToHex(colour) {
+                                    var colours = {"aliceblue":"#f0f8ff","antiquewhite":"#faebd7","aqua":"#00ffff","aquamarine":"#7fffd4","azure":"#f0ffff",
+                                    "beige":"#f5f5dc","bisque":"#ffe4c4","black":"#000000","blanchedalmond":"#ffebcd","blue":"#0000ff","blueviolet":"#8a2be2","brown":"#a52a2a","burlywood":"#deb887",
+                                    "cadetblue":"#5f9ea0","chartreuse":"#7fff00","chocolate":"#d2691e","coral":"#ff7f50","cornflowerblue":"#6495ed","cornsilk":"#fff8dc","crimson":"#dc143c","cyan":"#00ffff",
+                                    "darkblue":"#00008b","darkcyan":"#008b8b","darkgoldenrod":"#b8860b","darkgray":"#a9a9a9","darkgreen":"#006400","darkkhaki":"#bdb76b","darkmagenta":"#8b008b","darkolivegreen":"#556b2f",
+                                    "darkorange":"#ff8c00","darkorchid":"#9932cc","darkred":"#8b0000","darksalmon":"#e9967a","darkseagreen":"#8fbc8f","darkslateblue":"#483d8b","darkslategray":"#2f4f4f","darkturquoise":"#00ced1",
+                                    "darkviolet":"#9400d3","deeppink":"#ff1493","deepskyblue":"#00bfff","dimgray":"#696969","dodgerblue":"#1e90ff",
+                                    "firebrick":"#b22222","floralwhite":"#fffaf0","forestgreen":"#228b22","fuchsia":"#ff00ff",
+                                    "gainsboro":"#dcdcdc","ghostwhite":"#f8f8ff","gold":"#ffd700","goldenrod":"#daa520","gray":"#808080","green":"#008000","greenyellow":"#adff2f",
+                                    "honeydew":"#f0fff0","hotpink":"#ff69b4",
+                                    "indianred ":"#cd5c5c","indigo":"#4b0082","ivory":"#fffff0","khaki":"#f0e68c",
+                                    "lavender":"#e6e6fa","lavenderblush":"#fff0f5","lawngreen":"#7cfc00","lemonchiffon":"#fffacd","lightblue":"#add8e6","lightcoral":"#f08080","lightcyan":"#e0ffff","lightgoldenrodyellow":"#fafad2",
+                                    "lightgrey":"#d3d3d3","lightgreen":"#90ee90","lightpink":"#ffb6c1","lightsalmon":"#ffa07a","lightseagreen":"#20b2aa","lightskyblue":"#87cefa","lightslategray":"#778899","lightsteelblue":"#b0c4de",
+                                    "lightyellow":"#ffffe0","lime":"#00ff00","limegreen":"#32cd32","linen":"#faf0e6",
+                                    "magenta":"#ff00ff","maroon":"#800000","mediumaquamarine":"#66cdaa","mediumblue":"#0000cd","mediumorchid":"#ba55d3","mediumpurple":"#9370d8","mediumseagreen":"#3cb371","mediumslateblue":"#7b68ee",
+                                    "mediumspringgreen":"#00fa9a","mediumturquoise":"#48d1cc","mediumvioletred":"#c71585","midnightblue":"#191970","mintcream":"#f5fffa","mistyrose":"#ffe4e1","moccasin":"#ffe4b5",
+                                    "navajowhite":"#ffdead","navy":"#000080",
+                                    "oldlace":"#fdf5e6","olive":"#808000","olivedrab":"#6b8e23","orange":"#ffa500","orangered":"#ff4500","orchid":"#da70d6",
+                                    "palegoldenrod":"#eee8aa","palegreen":"#98fb98","paleturquoise":"#afeeee","palevioletred":"#d87093","papayawhip":"#ffefd5","peachpuff":"#ffdab9","peru":"#cd853f","pink":"#ffc0cb","plum":"#dda0dd","powderblue":"#b0e0e6","purple":"#800080",
+                                    "rebeccapurple":"#663399","red":"#ff0000","rosybrown":"#bc8f8f","royalblue":"#4169e1",
+                                    "saddlebrown":"#8b4513","salmon":"#fa8072","sandybrown":"#f4a460","seagreen":"#2e8b57","seashell":"#fff5ee","sienna":"#a0522d","silver":"#c0c0c0","skyblue":"#87ceeb","slateblue":"#6a5acd","slategray":"#708090","snow":"#fffafa","springgreen":"#00ff7f","steelblue":"#4682b4",
+                                    "tan":"#d2b48c","teal":"#008080","thistle":"#d8bfd8","tomato":"#ff6347","turquoise":"#40e0d0",
+                                    "violet":"#ee82ee",
+                                    "wheat":"#f5deb3","white":"#ffffff","whitesmoke":"#f5f5f5",
+                                    "yellow":"#ffff00","yellowgreen":"#9acd32"};
+                                    if (typeof colours[colour.toLowerCase()] != 'undefined')
+                                        return colours[colour.toLowerCase()];
+                                    return colour;
+                                }
+                                function hexToRgb(hex) {
+                                    hex = colourNameToHex(hex);
+                                    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                                    return result ? {
+                                        r: parseInt(result[1], 16),
+                                        g: parseInt(result[2], 16),
+                                        b: parseInt(result[3], 16)
+                                    } : null;
+                                }
+                                function NormalizeColor(colorComponent) {
+                                    if(colorComponent<0)
+                                        return 0;
+                                    if(colorComponent>255)
+                                        return 255;
+                                    return Math.floor(colorComponent);
+                                }
+                                function ChangeIndicatorColorSaturation(color) {
+                                    if(indicator != 0) {
+                                        let rgb = hexToRgb(color);
+                                        let hsv = rgb2hsv(rgb);
+                                        hsv.s = hsv.s < 50 ? hsv.s : 50;
+                                        hsv.s = hsv.s > 20 ? hsv.s : 20;
+                                        hsv.v = hsv.v > 85 ? hsv.v : 85;
+                                        hsv.v = hsv.v < 95 ? hsv.v : 95;
+                                        rgb = hsv2rgb(hsv);
+                                        return rgbToHex(NormalizeColor(rgb.r), NormalizeColor(rgb.g), NormalizeColor(rgb.b));
+                                    }
+                                    return color;
+                                }
                                 var seriesCustomization = function (valueFromNameField) {
-                                    for (var i = -1, j = legend.length; ++i < j;)
+                                    let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
+                                    for (var i = -1, j = legend.length; ++i < j;) {
                                         if (legend[i].RowKey == valueFromNameField)
-                                            return { color: legend[i].Color };
+                                            return { color: ChangeIndicatorColorSaturation(legend[i].Color) };
+                                        if (valueFromNameField === legend[i].RowKey + indicatorName)
+                                            return { type: "spline", color: legend[i].Color };
+                                    }
                                     return { color: "gray" };
                                 };
                                 var toolTipCustomization = function (point) {
@@ -363,12 +729,13 @@
 								};
                                 var $timeChartContainer = $("#chartContainer" + testCase.RowKey);
                                 $timeChartContainer.dxChart({
-                                    dataSource: testCase.data,
-                                    useAggregation: true,
+                                    dataSource: ApplyIndicator(testCase.data),
+                                    useAggregation:  indicator === 0,
                                     commonSeriesSettings: {
+//                                        type: indicator == 0 ? undefined : 'spline',
                                         valueField: "elapsed",
                                         point: {
-                                            size: 3
+                                            size: indicator == 0 ? 3 : 0
                                         }
                                     },
                                     valueAxis: [{
@@ -389,18 +756,19 @@
                                         enabled: true,
                                         customizeTooltip: toolTipCustomization
                                     },
-                                    useAggregation: true,
                                     //onSeriesHoverChanged: seriesHoverChangedHandler,
 									onLegendClick: legendClickHandler
                                 });
 
                                 var $memoryChartContainer = $("#memoryChartContainer" + testCase.RowKey);
                                 $memoryChartContainer.dxChart({
-                                    dataSource: testCase.data,
+                                    dataSource: ApplyIndicator(testCase.data),
+                                    useAggregation: indicator === 0,
                                     commonSeriesSettings: {
+                                       // type: indicator == 0 ? undefined : 'spline',
                                         valueField: "memory",
                                         point: {
-                                            size: 3
+                                            size: indicator == 0 ? 3 : 0
                                         }
                                     },
                                     valueAxis: [{ 
@@ -419,7 +787,6 @@
                                         enabled: true,
                                         customizeTooltip: toolTipCustomization
                                     },
-                                    useAggregation: true,
                                     onSeriesHoverChanged: seriesHoverChangedHandler,
                                     onLegendClick: legendClickHandler
                                 });
@@ -439,9 +806,6 @@
                                 }
                                 var $rangeChartContainer = $("#range" + testCase.RowKey);
                                 $rangeChartContainer.dxRangeSelector({
-                                    size: {
-                                        height: 120
-                                    },
                                     dataSource: testCase.data,
                                     chart: {
                                         useAggregation: true,
@@ -453,27 +817,13 @@
                                     behavior: {
                                         callSelectedRangeChanged: "onMoving"
                                     },
-                                    onSelectedRangeChanged: function (e) {
-                                        var memoryChart = $memoryChartContainer.dxChart("instance"),
-                                            timeChart = $timeChartContainer.dxChart("instance");
-                                        if (timeChart.option("needRealData")) {
-                                            var series = seriesToHide(testCase);
-                                            console.log("Data update happens");
-											if(memoryChart)
-												memoryChart.option("dataSource", testCase.data);
-                                            timeChart.option("dataSource", testCase.data);
-                                            timeChart.option("needRealData", false);
-                                            series.forEach(function(x, _) {
-                                                hideSeries(testCase, x);
-                                            });
-                                        }
-										if(memoryChart)
-											memoryChart.zoomArgument(e.startValue, e.endValue);
-                                        timeChart.zoomArgument(e.startValue, e.endValue);
+                                    onSelectedRangeChanged: function(e) {
+                                        rangeChanged(testCase);
                                     }
                                 });
                             }
                         });
+                    });
                     });
                 },
                 error: function (rcvData) {
@@ -487,6 +837,7 @@
 	<div id="testsFilter"></div>
     <div style="display:flex">
         <div id="clearFilter"></div>
+        <div id="indicatorsFilter" style="width:200px"></div>
         <div id="periodFilter" style="width:200px"></div>
         <div id="tagBoxFilter" style="flex:1"></div>
     </div>
