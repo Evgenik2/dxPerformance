@@ -166,14 +166,6 @@
                     series2.hide();
             }
         }
-        function seriesToHide(testCase) {
-            var chart = $("#chartContainer" + testCase.RowKey).dxChart('instance');
-            return chart.getAllSeries().filter(function(x) {
-                return !x.isVisible();
-            }).map(function(x) {
-                return x.name;
-            });
-        }
         $(document).ready(function () {
             var chartId = 0;
             var legend;
@@ -194,10 +186,45 @@
             }();
             const period = parseInt(urlParameters["period"] || localStorage["dxPeriod"] || (7 * oneDay).toString());
             const indicator = parseInt(urlParameters["indicator"] || localStorage["dxIndicator"] || 0);
+            const vendor = urlParameters["vendor"] || localStorage["dxVendor"] || "";
             const indicators = [ {Id: 0, Value: "Value"}, 
                                  {Id: 1, Value: "Trend line"},
                                  {Id: 2, Value: "EMA"}                                
                                ];
+            function GetLegendName(sn) {
+                let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
+                for (var i = -1, j = legend.length; ++i < j;) {
+                    if (legend[i].RowKey == sn)
+                        return legend[i].Title;
+                    if (sn === legend[i].RowKey + indicatorName)
+                        return legend[i].Title + " " + indicatorName;
+                }
+            }
+            function checkVendorToHide(name) {
+                let c = false;
+                let n = false;
+                let ln = name + GetLegendName(name).toLowerCase();
+                vendor.toLowerCase().split("&").forEach(function(x) { 
+                    if(x.startsWith("!")) {
+                        if(ln.includes(x.split("!")[1]))
+                            n = true;
+                    } else {
+                        c |= ln.includes(x); 
+                    }
+                });
+                if(n) 
+                    return true;
+                return !c;
+            }
+            function seriesToHide(testCase) {
+                var chart = $("#chartContainer" + testCase.RowKey).dxChart('instance');
+                return chart.getAllSeries().filter(function(x) {
+                    return !x.isVisible() || checkVendorToHide(x.name);
+                }).map(function(x) {
+                    return x.name;
+                });
+            }
+
             function EMACalc(mArray, start, end, mRange) {
                 let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
                 let k = 2 / (mRange + 1);
@@ -220,7 +247,7 @@
                 }
                 return a;
             }
-
+            var trend;
             function Trend(data, start, end) {
                 let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
                 let now = new Date().getTime();
@@ -329,6 +356,17 @@
                             partitionKeys.push(val.PartitionKey); 
                         return partitionKeys;
                     }, []);
+                    $("#vendorFilter").dxTextBox({
+                        value: vendor,
+                        mode: "text",
+                        onValueChanged: (e) => {
+                            let x = e.value;
+                            if(x != localStorage["dxVendor"]) {
+                                localStorage["dxVendor"] = x;
+                                document.location = document.location;
+                            }
+                        }
+                    });
                     $("#indicatorsFilter").dxSelectBox({
                         displayExpr: "Value",
                         valueExpr: "Id",
@@ -385,6 +423,8 @@
                             }
                         });
                     }
+                    if(urlParameters["vendor"])
+                        $("#vendorFilter").hide();
                     if(urlParameters["indicator"])
                         $("#indicatorsFilter").hide();
                     if(urlParameters["period"])
@@ -438,7 +478,8 @@
                             "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue.getTime() + 
                             "&period=" + period + 
                             "&indicator=" + indicator + 
-                            "&hide=" + seriesToHide(testCase).join(",");
+                            "&vendor=" + encodeURIComponent(vendor) + 
+                            "&hide=" + encodeURIComponent(seriesToHide(testCase).join(","));
                         });
                         if(urlParameters["filter"]) {
                             $timeChartContainer.hide();
@@ -550,21 +591,20 @@
                                            hideSeries(testCase, x);
                                         });
                                     }
+                                    if(vendor) {
+                                        let series = seriesToHide(testCase);
+                                        series.forEach(function(x, _) {
+                                            hideSeries(testCase, x);
+                                        });
+                                    }
                                     rangeSelector.option("onSelectedRangeChanged", originalHandler)
                                     window.range = $rangeChartContainer.dxRangeSelector("instance");
                                 });
                                 testCase.data = getPreparedData(data.value);
                                 testCase.aggregate = getPreparedData(data.value);
                                 var legendCustomization = function () {
-                                    let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
                                     var sn = this.seriesName;
-                                    for (var i = -1, j = legend.length; ++i < j;) {
-                                        if (legend[i].RowKey == sn)
-                                            return legend[i].Title;
-                                        if (sn === legend[i].RowKey + indicatorName)
-                                            return legend[i].Title + " " + indicatorName;
-                                    }
-                                    return this.seriesName;
+                                    return GetLegendName(sn) || this.seriesName;
                                 };
                                 function rgbToHex(r, g, b) {
                                     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
@@ -804,6 +844,13 @@
                                             series.hide();
                                     });
                                 }
+                                if(vendor) {
+                                    let series = seriesToHide(testCase);
+                                    series.forEach(function(x, _) {
+                                        hideSeries(testCase, x);
+                                    });
+                                }
+
                                 var $rangeChartContainer = $("#range" + testCase.RowKey);
                                 $rangeChartContainer.dxRangeSelector({
                                     dataSource: testCase.data,
@@ -840,6 +887,7 @@
         <div id="indicatorsFilter" style="width:200px"></div>
         <div id="periodFilter" style="width:200px"></div>
         <div id="tagBoxFilter" style="flex:1"></div>
+        <div id="vendorFilter" style="width:200px"></div>
     </div>
     <div id="chartContainer" style="width: 100%; height:400px;">
     </div>
