@@ -36,7 +36,10 @@
         var indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB,
         IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction,
         baseName = "performanceBase9";
-
+        String.prototype.replaceAll = function(search, replacement) {
+            var target = this;
+            return target.replace(new RegExp(search, 'g'), replacement);
+        };
         function logerr(err){
             console.log(err);
         }
@@ -468,7 +471,7 @@
 						return str.replace(/\s/g, '').replace(/%20/g, '').toUpperCase();
 					});
 					testsList = $.map(testsList, function (test) {
-						if (filter.indexOf(test.PartitionKey.toUpperCase()) > -1 || filter.indexOf(test.RowKey.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1 || filter.indexOf(test.Name.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1)
+						if (filter.indexOf(test.PartitionKey.toUpperCase()) > -1 || filter.indexOf(test.RowKey.replace(/\s/g, '').replace(/%20/g, '').toUpperCase()) > -1 || filter.indexOf(test.Name.replace(/\s/g, '').replace(/%20/g, '').replaceAll(",","").toUpperCase()) > -1)
 							return test;
 						return;
 					});
@@ -508,7 +511,7 @@
                         $icon.on("click", function() {
                             let sth = seriesToHide(testCase).join(",");
                             document.location = location.protocol + '//' + location.host + location.pathname + 
-                            "?filter=" + encodeURIComponent($header.text()) + 
+                            "?filter=" + encodeURIComponent($header.text().replaceAll(",","")) + 
                             "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue.getTime() + 
                             "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue.getTime() + 
                             "&period=" + period + 
@@ -566,7 +569,7 @@
                                             $("#progress" + testCase.RowKey).hide();
                                             $("#range" + testCase.RowKey).show();
                                             if(!urlParameters["filter"])
-                                            $("#icon" + testCase.RowKey).show();
+                                                $("#icon" + testCase.RowKey).show();
 
                                             $def.resolve(results);
                                             return;
