@@ -188,8 +188,9 @@
             const indicator = parseInt(urlParameters["indicator"] || localStorage["dxIndicator"] || 0);
             const vendor = urlParameters["vendor"] || localStorage["dxVendor"] || "";
             const indicators = [ {Id: 0, Value: "Value"}, 
-                                 {Id: 1, Value: "Trend line"},
-                                 {Id: 2, Value: "EMA"}                                
+                                 {Id: 1, Value: "Trend"},
+                                 {Id: 2, Value: "EMA"},
+                                 {Id: 3, Value: "Bar"}
                                ];
             function GetLegendName(sn) {
                 let indicatorName = indicators.find(function(x){ return x.Id === indicator; }).Value;
@@ -287,6 +288,37 @@
                     });
                 return fdata;
             }
+            function Bar(data, start, end) {
+                let now = new Date().getTime();
+                let fdata = data.filter(function(x) { return start == undefined || (x.arg > start && x.arg < end); }).map(function(x) { 
+                        return {
+                            time: (x.arg.getTime() - now) / 60000,
+                            vendor: x.vendor,
+                            arg: x.arg,
+                            elapsed: x.elapsed,
+                            memory: x.memory
+                        };
+                    });
+                let av = fdata.reduce(function(a, b) {
+                        let val = (a[b.vendor] = a[b.vendor] || { time: 0, memory: 0, elapsed: 0, len: 0, arg: GetLegendName(b.vendor) });
+                        val.len += 1;
+                        val.time += b.time; 
+                        val.elapsed += b.elapsed; 
+                        val.memory += b.memory; 
+                        return a;
+                    }, { });
+                let res = [];
+                Object.keys(av).forEach(function(x, _) {
+                    av[x].time /= av[x].len;
+                    av[x].elapsed /= av[x].len;
+                    av[x].elapsed = Math.round(av[x].elapsed * 100) / 100
+                    av[x].memory /= av[x].len;
+                    av[x].memory = Math.round(av[x].memory * 100) / 100
+                    av[x].vendor = x;
+                    res.push(av[x]);
+                });
+                return res;
+            }
             function ApplyIndicator(data, start, end) {
                 switch(indicator) {
                     case 0:
@@ -295,6 +327,8 @@
                         return data.concat(Trend(data, start, end));
                     case 2: 
                         return data.concat(EMACalc(data, start, end, 10));
+                    case 3:
+                        return Bar(data, start, end);
                 }
                 return data;
             }
@@ -472,14 +506,15 @@
                         $range.hide();
                         $range.appendTo($container);
                         $icon.on("click", function() {
+                            let sth = seriesToHide(testCase).join(",");
                             document.location = location.protocol + '//' + location.host + location.pathname + 
                             "?filter=" + encodeURIComponent($header.text()) + 
                             "&start=" + $range.dxRangeSelector("instance").option("selectedRange").startValue.getTime() + 
                             "&end=" + $range.dxRangeSelector("instance").option("selectedRange").endValue.getTime() + 
                             "&period=" + period + 
                             "&indicator=" + indicator + 
-                            "&vendor=" + encodeURIComponent(vendor) + 
-                            "&hide=" + encodeURIComponent(seriesToHide(testCase).join(","));
+                            (vendor ? ("&vendor=" + encodeURIComponent(vendor)) : "") + 
+                            (sth ? ("&hide=" + encodeURIComponent(sth)) : "");
                         });
                         if(urlParameters["filter"]) {
                             $timeChartContainer.hide();
@@ -742,7 +777,7 @@
                                 };
                                 var toolTipCustomization = function (point) {
                                     var dt = point.argument;
-                                    return { text: point.valueText + "\r\n" + (dt.getMonth() + 1) + "/" + dt.getDate() + " " + dt.getHours() + ":" + dt.getMinutes() };
+                                    return indicator === 3 ? { text: GetLegendName(point.seriesName) + "\r\n" + point.valueText } : { text: point.valueText + "\r\n" + (dt.getMonth() + 1) + "/" + dt.getDate() + " " + dt.getHours() + ":" + dt.getMinutes() };
                                 };
 								var legendClickHandler = function (info) {
 									var series = info.target;
@@ -772,18 +807,23 @@
                                     dataSource: ApplyIndicator(testCase.data),
                                     useAggregation:  indicator === 0,
                                     commonSeriesSettings: {
-//                                        type: indicator == 0 ? undefined : 'spline',
+                                        type: indicator != 3 ? undefined : 'bar',
                                         valueField: "elapsed",
+                                        label: {
+                                            visible: indicator === 3
+                                        },
                                         point: {
                                             size: indicator == 0 ? 3 : 0
                                         }
                                     },
+                                    
                                     valueAxis: [{
                                         title: {
                                             text: "Seconds"
                                         }
                                     }],
                                     argumentAxis: { valueMarginsEnabled: false },
+                                    equalBarWidth: false,
                                     seriesTemplate: {
                                         nameField: "vendor",
                                         customizeSeries: seriesCustomization
@@ -805,8 +845,11 @@
                                     dataSource: ApplyIndicator(testCase.data),
                                     useAggregation: indicator === 0,
                                     commonSeriesSettings: {
-                                       // type: indicator == 0 ? undefined : 'spline',
+                                        type: indicator != 3 ? undefined : 'bar',
                                         valueField: "memory",
+                                        label: {
+                                            visible: indicator === 3
+                                        },
                                         point: {
                                             size: indicator == 0 ? 3 : 0
                                         }
@@ -821,6 +864,7 @@
                                         nameField: "vendor",
                                         customizeSeries: seriesCustomization
                                     },
+                                    equalBarWidth: false,
                                     legend: { customizeText: legendCustomization },
                                     animation: false,
                                     tooltip: {
