@@ -753,7 +753,7 @@
                                     return Math.floor(colorComponent);
                                 }
                                 function ChangeIndicatorColorSaturation(color) {
-                                    if(indicator != 0) {
+                                    if(indicator != 0 && indicator != 3) {
                                         let rgb = hexToRgb(color);
                                         let hsv = rgb2hsv(rgb);
                                         hsv.s = hsv.s < 50 ? hsv.s : 50;
